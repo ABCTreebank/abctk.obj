@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "abctk.obj"
+version = "0.1.0"
+description = ""
+authors = ["Nori Hayashi <net@hayashi-lin.net>"]
+packages = [
+    { include = "abctk/obj" }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8.0, <4"
+numpy = "^1.24.0"
+scipy = "^1.9.3"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
