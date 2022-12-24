@@ -211,7 +211,7 @@ def align_comp_annotations(
     costs_orig = np.vectorize(
         lambda j: j.value,
         otypes = [np.int_],
-    )(judgments)
+    )(judgments).reshape( (size_pred, size_ref) )
 
     padding_pred_idle = np.full(
         (size_pred, size_pred),
