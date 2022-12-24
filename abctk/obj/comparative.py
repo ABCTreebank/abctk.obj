@@ -1,6 +1,6 @@
 from collections import defaultdict, deque, Counter
 import typing
-from typing import Iterable, TypedDict, Optional, Sequence, Tuple, NamedTuple, DefaultDict, List, Dict
+from typing import Iterable, TextIO, TypedDict, Optional, Sequence, Tuple, NamedTuple, DefaultDict, List, Dict, Match
 from enum import IntEnum
 import re
 
@@ -17,10 +17,13 @@ class CompSpan(TypedDict):
     end: int
     label: str
 
-class CompRecord(TypedDict):
+class CompRecord(TypedDict, total = False):
+    # TODO: when Python 3.10 is in EOL: 
+    # Use NotRequired field instead of total = False
     ID: str
     tokens: Sequence[str]
     comp: Sequence[CompSpan]
+    comments: Sequence[str]
 
 _LABEL_WEIGHT = defaultdict(lambda: 0)
 _LABEL_WEIGHT["root"] = -100
@@ -139,7 +142,7 @@ def delinearize_ID_annotations(line: str) -> CompRecord:
     
     Examples
     --------
-    >>> bracket_to_dict(
+    >>> delinearize_ID_annotations(
     ...     "test_11 [太郎 [花子 より]prej 賢い]root",
     ... )
     { 
@@ -154,6 +157,38 @@ def delinearize_ID_annotations(line: str) -> CompRecord:
     line_split = line.split(" ", 1)
     ID, text = line_split[0], line_split[1]
     return delinearize_annotations(text, ID = ID)
+
+_RE_COMMENT = re.compile(r"^//\s*(?P<comment>.*)")
+
+def read_bracket_annotation_file(stream: TextIO):
+    comment_reservoir: List[str] = []
+    record_reservoir: Optional[CompRecord] = None
+
+    for line in map(str.strip, stream):
+        match_comment: Match[str] | None = _RE_COMMENT.match(line)
+
+        if not line:
+            continue
+        elif match_comment:
+            comment_reservoir.append(match_comment.group("comment"))
+        else:
+            # generate the previous record
+            if record_reservoir:
+                if comment_reservoir:
+                    record_reservoir["comments"] = [com for com in comment_reservoir]
+                    comment_reservoir.clear()
+
+                yield record_reservoir
+            
+            record_reservoir = delinearize_ID_annotations(line)
+
+    if record_reservoir:
+        if comment_reservoir:
+            record_reservoir["comments"] = [com for com in comment_reservoir]
+            comment_reservoir.clear()
+
+        yield record_reservoir
+
 
 class PenalizeResult(IntEnum):
     CORRECT = 0
@@ -228,7 +263,6 @@ def align_comp_annotations(
         0,
         dtype = np.int_
     )
-
     costs = np.block(
         [
             [costs_orig,       padding_pred_idle],
