@@ -1,7 +1,7 @@
 from collections import defaultdict, deque, Counter
 import typing
 from typing import Iterable, TextIO, TypedDict, Optional, Sequence, Tuple, NamedTuple, DefaultDict, List, Dict, Match
-from enum import IntEnum
+from enum import IntEnum, auto
 import re
 
 import numpy as np
@@ -190,15 +190,15 @@ def read_bracket_annotation_file(stream: TextIO):
         yield record_reservoir
 
 
-class PenalizeResult(IntEnum):
-    CORRECT = 0
-    SPURIOUS = 2
-    MISSING = 2
-    WRONG_LABEL = 2
-    WRONG_SPAN = 1
-    WRONG_LABEL_SPAN = 2
+class MatchSpanResult(IntEnum):
+    CORRECT = auto()
+    SPURIOUS = auto()
+    MISSING = auto()
+    WRONG_LABEL = auto()
+    WRONG_SPAN = auto()
+    WRONG_LABEL_SPAN = auto()
 
-def penalize_comp_spans(
+def match_CompSpan(
     prediction: CompSpan,
     reference: CompSpan,
 ):
@@ -208,17 +208,25 @@ def penalize_comp_spans(
     results = (eq_start, eq_end, eq_label)
 
     if results == (True, True, True):
-        return PenalizeResult.CORRECT
+        return MatchSpanResult.CORRECT
     elif results == (True, True, False):
-        return PenalizeResult.WRONG_LABEL
+        return MatchSpanResult.WRONG_LABEL
     elif eq_label:
-        return PenalizeResult.WRONG_SPAN
+        return MatchSpanResult.WRONG_SPAN
     else:
-        return PenalizeResult.WRONG_LABEL_SPAN
+        return MatchSpanResult.WRONG_LABEL_SPAN
 
+PENALTY = {
+    MatchSpanResult.CORRECT: 0,
+    MatchSpanResult.SPURIOUS: 2,
+    MatchSpanResult.MISSING: 2,
+    MatchSpanResult.WRONG_LABEL: 2,
+    MatchSpanResult.WRONG_SPAN: 1,
+    MatchSpanResult.WRONG_LABEL_SPAN: 2,
+}
 class AlignResult(NamedTuple):
-    map_pred_to_ref: Tuple[Tuple[int, PenalizeResult]]
-    map_ref_to_pred: Tuple[Tuple[int, PenalizeResult]]
+    map_pred_to_ref: Tuple[Tuple[int, MatchSpanResult]]
+    map_ref_to_pred: Tuple[Tuple[int, MatchSpanResult]]
 
 def align_comp_annotations(
     predictions: Sequence[CompSpan],
@@ -235,7 +243,7 @@ def align_comp_annotations(
     
     judgments = [
         [
-            penalize_comp_spans(
+            match_CompSpan(
                 prediction = predictions[p],
                 reference = references[r],
             )
@@ -244,18 +252,18 @@ def align_comp_annotations(
         for p in range(size_pred)
     ]
     costs_orig = np.vectorize(
-        lambda j: j.value,
+        lambda j: PENALTY[j],
         otypes = [np.int_],
     )(judgments).reshape( (size_pred, size_ref) )
 
     padding_pred_idle = np.full(
         (size_pred, size_pred),
-        PenalizeResult.SPURIOUS.value,
+        MatchSpanResult.SPURIOUS.value,
         dtype = np.int_
     )
     padding_idle_ref = np.full(
         (size_ref, size_ref),
-        PenalizeResult.MISSING.value,
+        MatchSpanResult.MISSING.value,
         dtype = np.int_
     )
     padding_idle_idle = np.full(
@@ -281,7 +289,7 @@ def align_comp_annotations(
         (
             (r, judgments[p][r])
             if r < size_ref
-            else (-1, PenalizeResult.SPURIOUS)
+            else (-1, MatchSpanResult.SPURIOUS)
         )
         for p, r in zip(opt_pred, opt_ref)
         if p < size_pred
@@ -291,7 +299,7 @@ def align_comp_annotations(
         (
             (p, judgments[p][r])
             if p < size_pred
-            else (-1, PenalizeResult.MISSING)
+            else (-1, MatchSpanResult.MISSING)
         )
         for p, r in zip(opt_pred, opt_ref)
         if r < size_ref
@@ -329,7 +337,7 @@ def calc_prediction_metrics(
 
     """
     result_bin: DefaultDict[
-        str, typing.Counter[PenalizeResult]
+        str, typing.Counter[MatchSpanResult]
     ] = defaultdict(
        lambda: Counter() 
     )
@@ -354,29 +362,29 @@ def calc_prediction_metrics(
     res_per_label: dict[str, dict[str, float]] = {}
     for label, ct in result_bin.items():
         possible_entries = (
-            ct[PenalizeResult.CORRECT]
-            + ct[PenalizeResult.WRONG_SPAN]
-            + ct[PenalizeResult.WRONG_LABEL]
-            + ct[PenalizeResult.WRONG_LABEL_SPAN]
-            + ct[PenalizeResult.MISSING]
+            ct[MatchSpanResult.CORRECT]
+            + ct[MatchSpanResult.WRONG_SPAN]
+            + ct[MatchSpanResult.WRONG_LABEL]
+            + ct[MatchSpanResult.WRONG_LABEL_SPAN]
+            + ct[MatchSpanResult.MISSING]
         )
 
         actual_entries = (
             possible_entries
-            - ct[PenalizeResult.MISSING]
-            + ct[PenalizeResult.SPURIOUS]
+            - ct[MatchSpanResult.MISSING]
+            + ct[MatchSpanResult.SPURIOUS]
         )
 
-        precision_strict = ct[PenalizeResult.CORRECT] / actual_entries
-        recall_strict = ct[PenalizeResult.CORRECT] / possible_entries
+        precision_strict = ct[MatchSpanResult.CORRECT] / actual_entries
+        recall_strict = ct[MatchSpanResult.CORRECT] / possible_entries
         F1_strict = (
             2 * precision_strict * recall_strict
             / (precision_strict + recall_strict)
         )
 
         correct_with_partial = (
-            ct[PenalizeResult.CORRECT]
-            + 0.5 * ct[PenalizeResult.WRONG_SPAN]
+            ct[MatchSpanResult.CORRECT]
+            + 0.5 * ct[MatchSpanResult.WRONG_SPAN]
         )
         precision_partial = correct_with_partial / actual_entries
         recall_partial = correct_with_partial / possible_entries
