@@ -1,6 +1,7 @@
 from collections import defaultdict, deque, Counter
 import typing
 from typing import Iterable, TextIO, TypedDict, Optional, Sequence, Tuple, NamedTuple, DefaultDict, List, Dict, Match
+from collections.abc import Mapping
 from enum import IntEnum, auto
 import re
 
@@ -227,7 +228,6 @@ def read_bracket_annotation_file(stream: TextIO):
 
         yield record_reservoir
 
-
 class MatchSpanResult(IntEnum):
     CORRECT = auto()
     SPURIOUS = auto()
@@ -235,24 +235,29 @@ class MatchSpanResult(IntEnum):
     WRONG_LABEL = auto()
     WRONG_SPAN = auto()
     WRONG_LABEL_SPAN = auto()
+    DIFFERENT_STRATA = auto()
 
 def match_CompSpan(
     prediction: CompSpan,
     reference: CompSpan,
+    strata: Mapping[str, int] = defaultdict(lambda: 0, root = 1),
 ):
     eq_start = reference["start"] == prediction["start"]
     eq_end = reference["end"] == prediction["end"]
     eq_label = reference["label"] == prediction["label"]
     results = (eq_start, eq_end, eq_label)
-
-    if results == (True, True, True):
-        return MatchSpanResult.CORRECT
-    elif results == (True, True, False):
-        return MatchSpanResult.WRONG_LABEL
-    elif eq_label:
-        return MatchSpanResult.WRONG_SPAN
+    eq_strata = strata[reference["label"]] == strata[prediction["label"]]
+    if eq_strata:
+        if results == (True, True, True):
+            return MatchSpanResult.CORRECT
+        elif results == (True, True, False):
+            return MatchSpanResult.WRONG_LABEL
+        elif eq_label:
+            return MatchSpanResult.WRONG_SPAN
+        else:
+            return MatchSpanResult.WRONG_LABEL_SPAN
     else:
-        return MatchSpanResult.WRONG_LABEL_SPAN
+        return MatchSpanResult.DIFFERENT_STRATA
 
 PENALTY = {
     MatchSpanResult.CORRECT: 0,
@@ -261,6 +266,7 @@ PENALTY = {
     MatchSpanResult.WRONG_LABEL: 2,
     MatchSpanResult.WRONG_SPAN: 1,
     MatchSpanResult.WRONG_LABEL_SPAN: 2,
+    MatchSpanResult.DIFFERENT_STRATA: 65536,
 }
 class AlignResult(NamedTuple):
     map_pred_to_ref: Tuple[Tuple[int, MatchSpanResult]]
@@ -269,6 +275,7 @@ class AlignResult(NamedTuple):
 def align_comp_annotations(
     predictions: Sequence[CompSpan],
     references: Sequence[CompSpan],
+    strata: Mapping[str, int] = defaultdict(lambda: 0, root = 1),
 ) -> AlignResult:
     size_pred: int = len(predictions)
     size_ref: int = len(references)
@@ -284,6 +291,7 @@ def align_comp_annotations(
             match_CompSpan(
                 prediction = predictions[p],
                 reference = references[r],
+                strata = strata,
             )
             for r in range(size_ref)
         ]
@@ -357,6 +365,7 @@ class Metrics(TypedDict):
 def calc_prediction_metrics(
     predictions: Iterable[Sequence[CompSpan]],
     references: Iterable[Sequence[CompSpan]],
+    strata: Mapping[str, int] = defaultdict(lambda: 0, root = 1),
 ) -> Metrics:
     """
     Calculate precision and recall scores of 
@@ -382,7 +391,10 @@ def calc_prediction_metrics(
     result_alignments: List[AlignResult] = []
 
     for pred, ref in zip(predictions, references):
-        align_res = align_comp_annotations(pred, ref) 
+        align_res = align_comp_annotations(
+            pred, ref,
+            strata = strata,
+        ) 
         result_alignments.append(align_res)
 
         for p, pred_span in enumerate(pred):
