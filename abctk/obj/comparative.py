@@ -413,23 +413,31 @@ def calc_prediction_metrics(
             + ct[MatchSpanResult.SPURIOUS]
         )
 
-        precision_strict = ct[MatchSpanResult.CORRECT] / actual_entries
-        recall_strict = ct[MatchSpanResult.CORRECT] / possible_entries
+        precision_strict = (
+            ct[MatchSpanResult.CORRECT] / actual_entries
+        ) if actual_entries else np.inf
+        recall_strict = (
+            ct[MatchSpanResult.CORRECT] / possible_entries
+        ) if possible_entries else np.inf
         F1_strict = (
             2 * precision_strict * recall_strict
             / (precision_strict + recall_strict)
-        )
+        ) if (precision_strict + recall_strict) else np.inf
 
         correct_with_partial = (
             ct[MatchSpanResult.CORRECT]
             + 0.5 * ct[MatchSpanResult.WRONG_SPAN]
         )
-        precision_partial = correct_with_partial / actual_entries
-        recall_partial = correct_with_partial / possible_entries
+        precision_partial = (
+            correct_with_partial / actual_entries
+        ) if actual_entries else np.inf
+        recall_partial = (
+            correct_with_partial / possible_entries
+        ) if possible_entries else np.inf
         F1_partial = (
             2 * precision_partial * recall_partial
             / (precision_partial + recall_partial)
-        )
+        ) if (precision_partial + recall_partial) else np.inf
 
         res_per_label[label] = {
             key.name: value
@@ -449,10 +457,12 @@ def calc_prediction_metrics(
     F1_strict_list = tuple(
         res["F1_strict"]
         for res in res_per_label.values()
+        if not np.isnan(res["F1_strict"])
     )
     F1_partial_list = tuple(
         res["F1_partial"]
         for res in res_per_label.values()
+        if not np.isnan(res["F1_partial"])
     )
     return {
         "scores_spanwise": res_per_label,
