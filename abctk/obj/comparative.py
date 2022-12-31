@@ -25,6 +25,44 @@ class CompRecord(TypedDict, total = False):
     comp: Sequence[CompSpan]
     comments: Sequence[str]
 
+def dice_CompRecord(
+    tokens: Sequence[str], 
+    comp: Sequence[CompSpan],
+    ID: str = "<NOT GIVEN>",
+    comments: Optional[Sequence[str]] = None, 
+) -> CompRecord:
+    char_end_index = np.zeros( 
+        (len(tokens), ),
+        dtype= np.int_
+    )
+
+    tokens_diced: List[str] = []
+
+    for i, token in enumerate(tokens):
+        token = token.strip("##")
+        tokens_diced.extend(token)
+
+        char_end_index[i] = len(token)
+    char_end_index = np.cumsum(char_end_index)
+
+    comp_realigned = [
+        CompSpan(
+            start = (
+                char_end_index[span["start"] - 1]
+                if span["start"] > 0 else 0
+            ),
+            end = char_end_index[span["end"] - 1],
+            label = span["label"],
+        ) for span in comp
+    ]
+
+    return {
+        "ID": ID,
+        "tokens": tokens_diced,
+        "comp": comp_realigned,
+        "comments": comments or [],
+    }
+
 _LABEL_WEIGHT = defaultdict(lambda: 0)
 _LABEL_WEIGHT["root"] = -100
 
