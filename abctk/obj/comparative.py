@@ -18,6 +18,8 @@ class CompSpan(TypedDict):
     end: int
     label: str
 
+def print_CompSpan(obj: CompSpan):
+    return f'({obj["start"]}-{obj["end"]}){obj["label"]}'
 class CompRecord(TypedDict, total = False):
     # TODO: when Python 3.10 is in EOL: 
     # Use NotRequired field instead of total = False
@@ -271,6 +273,35 @@ PENALTY = {
 class AlignResult(NamedTuple):
     map_pred_to_ref: Tuple[Tuple[int, MatchSpanResult]]
     map_ref_to_pred: Tuple[Tuple[int, MatchSpanResult]]
+
+def print_AlignResult(
+    prediction: Sequence[CompSpan],
+    reference: Sequence[CompSpan],
+    alignment: AlignResult
+) -> List[str]:
+    printed = []
+    for p, pred_span in enumerate(prediction):
+        ref, match_result = alignment.map_pred_to_ref[p]
+        if match_result == MatchSpanResult.CORRECT:
+            printed.append(
+                f"ref: {print_CompSpan(reference[ref])} \t ↔ pred: {print_CompSpan(pred_span)}"
+            )
+        elif match_result == MatchSpanResult.SPURIOUS:
+            printed.append(
+                f"ref: NONE \t ↔ pred: {print_CompSpan(pred_span)}"
+            )
+        else:
+            printed.append(
+                f"ref: {print_CompSpan(reference[ref])} \t ↔ pred: {print_CompSpan(pred_span)} \t {match_result.name}"
+            )
+    for r, ref_span in enumerate(reference):
+        pred, match_result = alignment.map_ref_to_pred[r]
+        if match_result == MatchSpanResult.MISSING:
+            printed.append(
+                f"ref: {print_CompSpan(ref_span)} \t ↔ pred: None"
+            )
+
+    return printed
 
 def align_comp_annotations(
     predictions: Sequence[CompSpan],
