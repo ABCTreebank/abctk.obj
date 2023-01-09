@@ -372,19 +372,17 @@ def align_comp_annotations(
         if p < size_pred
     )
 
-    map_r2p = tuple(
-        (
-            (p, judgments[p][r])
-            if p < size_pred
-            else (-1, MatchSpanResult.MISSING)
-        )
-        for p, r in zip(opt_pred, opt_ref)
-        if r < size_ref
-    )
+    map_r2p: List[Tuple[int, MatchSpanResult]] = [(-1, MatchSpanResult.MISSING)] * size_ref
+    for p, r in zip(opt_pred, opt_ref):
+        if r < size_ref and p < size_pred:
+            map_r2p[r] = (p, judgments[p][r])
+        # else:
+            # MISSING in prediction
+            # use the filled value
 
     return AlignResult(
         map_pred_to_ref = map_p2r,
-        map_ref_to_pred = map_r2p,
+        map_ref_to_pred = tuple(map_r2p),
     )
 
 class Metrics(TypedDict):
