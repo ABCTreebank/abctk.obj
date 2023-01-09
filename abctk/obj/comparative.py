@@ -237,6 +237,7 @@ class MatchSpanResult(IntEnum):
     WRONG_LABEL = auto()
     WRONG_SPAN = auto()
     WRONG_LABEL_SPAN = auto()
+    NON_MATCHING = auto()
     DIFFERENT_STRATA = auto()
 
 def match_CompSpan(
@@ -244,20 +245,29 @@ def match_CompSpan(
     reference: CompSpan,
     strata: Mapping[str, int] = defaultdict(lambda: 0, root = 1),
 ):
-    eq_start = reference["start"] == prediction["start"]
-    eq_end = reference["end"] == prediction["end"]
+    eq_span = reference["start"] == prediction["start"] and reference["end"] == prediction["end"]
+
+    crossing_span = (
+        (reference["start"] <= prediction["start"] < reference["end"])
+        or (prediction["start"] <= reference["start"] < prediction["end"])
+    )
+
     eq_label = reference["label"] == prediction["label"]
-    results = (eq_start, eq_end, eq_label)
     eq_strata = strata[reference["label"]] == strata[prediction["label"]]
+
+    results = (eq_span, crossing_span, eq_label, eq_strata)
+
     if eq_strata:
-        if results == (True, True, True):
+        if eq_span and eq_label:
             return MatchSpanResult.CORRECT
-        elif results == (True, True, False):
+        elif eq_span:
             return MatchSpanResult.WRONG_LABEL
-        elif eq_label:
+        elif crossing_span and eq_label:
             return MatchSpanResult.WRONG_SPAN
-        else:
+        elif crossing_span:
             return MatchSpanResult.WRONG_LABEL_SPAN
+        else:
+            return MatchSpanResult.NON_MATCHING
     else:
         return MatchSpanResult.DIFFERENT_STRATA
 
@@ -268,6 +278,7 @@ PENALTY = {
     MatchSpanResult.WRONG_LABEL: 2,
     MatchSpanResult.WRONG_SPAN: 1,
     MatchSpanResult.WRONG_LABEL_SPAN: 2,
+    MatchSpanResult.NON_MATCHING: 65536,
     MatchSpanResult.DIFFERENT_STRATA: 65536,
 }
 class AlignResult(NamedTuple):
