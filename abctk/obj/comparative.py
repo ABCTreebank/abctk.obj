@@ -496,6 +496,7 @@ def calc_prediction_metrics(
         for r, ref_span in enumerate(ref):
             pred_index, ref_pred_jud = align_res.map_ref_to_pred[r]
             if pred_index < 0:
+                # count SPURIOUS
                 result_bin[ref_span["label"]][ref_pred_jud] += 1
 
     # ------
