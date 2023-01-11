@@ -28,6 +28,58 @@ class CompRecord(TypedDict, total = False):
     comp: Sequence[CompSpan]
     comments: Sequence[str]
 
+def chomp_CompRecord(
+    tokens_subworeded: Sequence[str],
+    comp: Sequence[CompSpan],
+    ID: str = "<NOT GIVEN>",
+    comments: Optional[Sequence[str]] = None, 
+) -> CompRecord:
+    token_end_index = np.zeros(
+        (len(tokens_subworeded), ),
+        dtype = np.int_
+    )
+
+    cls_offset: int = 0
+    pos_word: int = -1
+    for pos_subword, token_subworded in enumerate(tokens_subworeded):
+        if token_subworded in ("[SEP]", "[PAD]") :
+            # reach the end
+            # registre the end of the last word
+            token_end_index[pos_word] = pos_subword
+
+            # end the loop
+            break
+        elif token_subworded == "[CLS]":
+            cls_offset = pos_subword + 1
+            continue
+        elif token_subworded.startswith("##"):
+            continue
+        else:
+            # register the end of the previous word
+            if pos_word >= 0:
+                token_end_index[pos_word] = pos_subword
+
+            # incr the word pointer
+            pos_word += 1
+    
+    comp_realigned = [
+        CompSpan(
+            start = (
+                token_end_index[span["start"] - 1]
+                if span["start"] > 0 else cls_offset
+            ),
+            end = token_end_index[span["end"] - 1],
+            label = span["label"],
+        ) for span in comp
+    ]
+
+    return {
+        "ID": ID,
+        "tokens": tokens_subworeded,
+        "comp": comp_realigned,
+        "comments": comments or [],
+    }
+
 def dice_CompRecord(
     tokens: Sequence[str], 
     comp: Sequence[CompSpan],
