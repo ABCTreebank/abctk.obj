@@ -286,9 +286,7 @@ class MatchSpanResult(IntEnum):
     CORRECT = auto()
     SPURIOUS = auto()
     MISSING = auto()
-    WRONG_LABEL = auto()
     WRONG_SPAN = auto()
-    WRONG_LABEL_SPAN = auto()
     NON_MATCHING = auto()
     DIFFERENT_STRATA = auto()
 
@@ -312,12 +310,8 @@ def match_CompSpan(
     if eq_strata:
         if eq_span and eq_label:
             return MatchSpanResult.CORRECT
-        elif eq_span:
-            return MatchSpanResult.WRONG_LABEL
         elif crossing_span and eq_label:
             return MatchSpanResult.WRONG_SPAN
-        elif crossing_span:
-            return MatchSpanResult.WRONG_LABEL_SPAN
         else:
             return MatchSpanResult.NON_MATCHING
     else:
@@ -327,9 +321,7 @@ PENALTY = {
     MatchSpanResult.CORRECT: 0,
     MatchSpanResult.SPURIOUS: 2,
     MatchSpanResult.MISSING: 2,
-    MatchSpanResult.WRONG_LABEL: 2,
     MatchSpanResult.WRONG_SPAN: 1,
-    MatchSpanResult.WRONG_LABEL_SPAN: 2,
     MatchSpanResult.NON_MATCHING: 65536,
     MatchSpanResult.DIFFERENT_STRATA: 65536,
 }
@@ -507,14 +499,12 @@ def calc_prediction_metrics(
         possible_entries = (
             ct[MatchSpanResult.CORRECT]
             + ct[MatchSpanResult.WRONG_SPAN]
-            + ct[MatchSpanResult.WRONG_LABEL]
-            + ct[MatchSpanResult.WRONG_LABEL_SPAN]
             + ct[MatchSpanResult.MISSING]
         )
 
         actual_entries = (
-            possible_entries
-            - ct[MatchSpanResult.MISSING]
+            ct[MatchSpanResult.CORRECT]
+            + ct[MatchSpanResult.WRONG_SPAN]
             + ct[MatchSpanResult.SPURIOUS]
         )
 
@@ -559,6 +549,7 @@ def calc_prediction_metrics(
         res_per_label[label]["recall_partial"] = recall_partial
         res_per_label[label]["F1_partial"] = F1_partial
     # === END FOR result_bin
+    
     F1_strict_list = tuple(
         res["F1_strict"]
         for res in res_per_label.values()
