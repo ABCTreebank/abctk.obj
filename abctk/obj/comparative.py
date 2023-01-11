@@ -295,21 +295,21 @@ def print_AlignResult(
         ref, match_result = alignment.map_pred_to_ref[p]
         if match_result == MatchSpanResult.CORRECT:
             printed.append(
-                f"ref: {print_CompSpan(reference[ref])} \t ↔ pred: {print_CompSpan(pred_span)}"
+                f"ref: {print_CompSpan(reference[ref])}     ↔ pred: {print_CompSpan(pred_span)}      ✓"
             )
         elif match_result == MatchSpanResult.SPURIOUS:
             printed.append(
-                f"ref: NONE \t ↔ pred: {print_CompSpan(pred_span)}"
+                f"ref: NONE      ↔ pred: {print_CompSpan(pred_span)}"
             )
         else:
             printed.append(
-                f"ref: {print_CompSpan(reference[ref])} \t ↔ pred: {print_CompSpan(pred_span)} \t {match_result.name}"
+                f"ref: {print_CompSpan(reference[ref])}      ↔ pred: {print_CompSpan(pred_span)}      {match_result.name}"
             )
     for r, ref_span in enumerate(reference):
         pred, match_result = alignment.map_ref_to_pred[r]
         if match_result == MatchSpanResult.MISSING:
             printed.append(
-                f"ref: {print_CompSpan(ref_span)} \t ↔ pred: None"
+                f"ref: {print_CompSpan(ref_span)}      ↔ pred: None"
             )
 
     return printed
