@@ -119,7 +119,7 @@ def dice_CompRecord(
     }
 
 _LABEL_WEIGHT = defaultdict(lambda: 0)
-_LABEL_WEIGHT["root"] = -100
+_LABEL_WEIGHT["root"] = 100
 
 def _mod_token(
     token: str,
