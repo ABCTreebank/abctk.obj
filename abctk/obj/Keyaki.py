@@ -1,5 +1,8 @@
 import re
-from typing import NamedTuple
+import typing
+from dataclasses import dataclass
+
+from abctk.obj.ID import RecordID
 
 _parser_Keyaki_ID = re.compile(
     r"^(?P<number>[0-9]+)_(?P<name>[^;]+)(;(?P<suffix>.*))?$"
@@ -7,7 +10,8 @@ _parser_Keyaki_ID = re.compile(
 
 _counter_default: int = 0
 
-class Keyaki_ID(NamedTuple):
+@dataclass(frozen = True)
+class Keyaki_ID(RecordID):
     """
     The internal structure of a Keyaki tree ID.
     """
@@ -27,10 +31,12 @@ class Keyaki_ID(NamedTuple):
     Additional annotations.
     """
 
-    orig: str = ""
-
     @classmethod
     def new(cls) -> "Keyaki_ID":
+        """
+        Generate a new unique object.
+        """
+        
         global _counter_default
         _counter_default += 1
 
@@ -38,18 +44,17 @@ class Keyaki_ID(NamedTuple):
             name = "",
             number = _counter_default,
             suffix = "",
-            orig = "",
         )
 
     @classmethod
-    def from_string(cls, ID: str) -> "Keyaki_ID":
+    def from_string(cls, ID: str) -> typing.Optional["Keyaki_ID"]:
         """
         Parse a Keyaki tree ID.
 
-        Notes
-        -----
-        If `name` is empty, it means that the parsing has failed.
-        The original ID is stored in `orig`.
+        Arguments
+        ---------
+        ID : str
+            The ID to parse.
 
         Examples
         --------
@@ -80,24 +85,15 @@ class Keyaki_ID(NamedTuple):
                 name = d["name"],
                 number = int(d["number"]),
                 suffix = d["suffix"] or "",
-                orig = ID,
             )
         elif ID.isnumeric():
             return cls(
                 name = "",
                 number = int(ID),
                 suffix = "",
-                orig = ID
             )
         else:
-            _counter_default += 1
-
-            return cls(
-                name = "",
-                number = _counter_default,
-                suffix = "",
-                orig = ID,
-            )
+            return None
 
     def __str__(self):
         suffix = self.suffix
