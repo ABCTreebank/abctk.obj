@@ -1,286 +1,14 @@
-from collections import defaultdict, deque, Counter
+from collections import defaultdict, Counter
 import typing
-from typing import Iterable, TextIO, TypedDict, Optional, Sequence, Tuple, NamedTuple, DefaultDict, List, Dict, Match
+from typing import Iterable, TypedDict, Sequence, Tuple, NamedTuple, DefaultDict, List, Dict
 from collections.abc import Mapping
 from enum import IntEnum, auto
-import re
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import linear_sum_assignment
 
-class _CompFeatBracket(NamedTuple):
-    label: str
-    is_start: bool
-
-class CompSpan(TypedDict):
-    start: int
-    end: int
-    label: str
-
-def print_CompSpan(obj: CompSpan):
-    return f'({obj["start"]}-{obj["end"]}){obj["label"]}'
-class CompRecord(TypedDict, total = False):
-    # TODO: when Python 3.10 is in EOL: 
-    # Use NotRequired field instead of total = False
-    ID: str
-    tokens: Sequence[str]
-    comp: Sequence[CompSpan]
-    comments: Sequence[str]
-
-def chomp_CompRecord(
-    tokens_subworeded: Sequence[str],
-    comp: Sequence[CompSpan],
-    ID: str = "<NOT GIVEN>",
-    comments: Optional[Sequence[str]] = None, 
-) -> CompRecord:
-    token_end_index = np.zeros(
-        (len(tokens_subworeded), ),
-        dtype = np.int_
-    )
-
-    cls_offset: int = 0
-    pos_word: int = -1
-    for pos_subword, token_subworded in enumerate(tokens_subworeded):
-        if token_subworded in ("[SEP]", "[PAD]") :
-            # reach the end
-            # registre the end of the last word
-            token_end_index[pos_word] = pos_subword
-
-            # end the loop
-            break
-        elif token_subworded == "[CLS]":
-            cls_offset = pos_subword + 1
-            continue
-        elif token_subworded.startswith("##"):
-            continue
-        else:
-            # register the end of the previous word
-            if pos_word >= 0:
-                token_end_index[pos_word] = pos_subword
-
-            # incr the word pointer
-            pos_word += 1
-    
-    comp_realigned = [
-        CompSpan(
-            start = (
-                token_end_index[span["start"] - 1]
-                if span["start"] > 0 else cls_offset
-            ),
-            end = token_end_index[span["end"] - 1],
-            label = span["label"],
-        ) for span in comp
-    ]
-
-    return {
-        "ID": ID,
-        "tokens": tokens_subworeded,
-        "comp": comp_realigned,
-        "comments": comments or [],
-    }
-
-def dice_CompRecord(
-    tokens: Sequence[str], 
-    comp: Sequence[CompSpan],
-    ID: str = "<NOT GIVEN>",
-    comments: Optional[Sequence[str]] = None, 
-) -> CompRecord:
-    char_end_index = np.zeros( 
-        (len(tokens), ),
-        dtype= np.int_
-    )
-
-    tokens_diced: List[str] = []
-
-    for i, token in enumerate(tokens):
-        token = token.strip("##")
-        tokens_diced.extend(token)
-
-        char_end_index[i] = len(token)
-    char_end_index = np.cumsum(char_end_index)
-
-    comp_realigned = [
-        CompSpan(
-            start = (
-                char_end_index[span["start"] - 1]
-                if span["start"] > 0 else 0
-            ),
-            end = char_end_index[span["end"] - 1],
-            label = span["label"],
-        ) for span in comp
-    ]
-
-    return {
-        "ID": ID,
-        "tokens": tokens_diced,
-        "comp": comp_realigned,
-        "comments": comments or [],
-    }
-
-_LABEL_WEIGHT = defaultdict(lambda: 0)
-_LABEL_WEIGHT["root"] = 100
-
-def _mod_token(
-    token: str,
-    feats: Iterable[_CompFeatBracket]
-) -> str:
-    for label, is_start in feats:
-        if is_start:
-            token = f"[{token}"
-        else:
-            token = f"{token}]{label}"
-    return token
-
-def linearize_annotations(
-    tokens: Iterable[str],
-    comp: Optional[Iterable[CompSpan]],
-) -> str:
-    """
-    linearlize a comparative NER annotation.
-
-    Examples
-    --------
-    >>> linearlize_annotation(
-    ...     tokens = ["太郎", "花子", "より", "賢い"],
-    ...     comp = [
-                {"start": 0, "end": 4, "label": "root"},
-                {"start": 1, "end": 2, "label": "prej"},
-            ],
-    ... )
-    "[太郎 [花子 より]prej 賢い]root"
-    """
-    feats_pos: defaultdict[int, deque[_CompFeatBracket]] = defaultdict(deque)
-
-    if comp:
-        for feat in sorted(
-            comp,
-            key = lambda x: _LABEL_WEIGHT[x["label"]]
-        ):
-            feats_pos[feat["start"]].append(
-                _CompFeatBracket(feat["label"], True)
-            )
-            feats_pos[feat["end"] - 1].append( 
-                _CompFeatBracket(feat["label"], False)
-            )
-
-    return ' '.join(
-        _mod_token(t, feats_pos[idx])
-        for idx, t in enumerate(tokens)
-    )
-
-def dict_to_bracket(datum: CompRecord) -> str:
-    token_bred = linearize_annotations(
-        datum["tokens"],
-        datum["comp"],
-    )
-    return f"{datum['ID']} {token_bred}\n"
-
-
-_RE_TOKEN_BR_CLOSE = re.compile(r"^(?P<token>[^\]]+)\](?P<feat>[a-z0-9]+)(?P<rem>.*)$")
-def delinearize_annotations(
-    line: str,
-    ID: str = "<NOT GIVEN>",
-) -> CompRecord:
-    """
-    Parse a linearized comparative NER annotation.
-
-    Examples
-    --------
-    >>> delinearize_annotations(
-    ...     "[太郎 [花子 より]prej 賢い]root",
-    ...     ID = "test_11",
-    ... )
-    { 
-        "ID": "test_11",
-        "tokens": ["太郎", "花子", "より", "賢い"],
-        "comp": {
-            "start": 1, "end": 2, "label": "prej"}
-            "start": 0, "end": 4, "label": "root"}
-        }
-    }
-    """
-
-    tokens = line.split(" ")
-
-    res_token_list = []
-    comp_dict_list = []
-    stack_br_open: list[int] = []
-
-    for i, token in enumerate(tokens):
-        while token.startswith("["):
-            stack_br_open.append(i)
-            token = token[1:]
-
-        while (match := _RE_TOKEN_BR_CLOSE.search(token)):
-            start = stack_br_open.pop()
-            comp_dict_list.append(
-                {
-                    "start": start,
-                    "end": i + 1,
-                    "label": match.group("feat")
-                }
-            )
-            token = match.group("token") + match.group("rem")
-
-        res_token_list.append(token)
-    return {
-        "ID": ID,
-        "tokens": res_token_list,
-        "comp": comp_dict_list,
-    }
-
-def delinearize_ID_annotations(line: str) -> CompRecord:
-    """
-    
-    Examples
-    --------
-    >>> delinearize_ID_annotations(
-    ...     "test_11 [太郎 [花子 より]prej 賢い]root",
-    ... )
-    { 
-        "ID": "test_11",
-        "tokens": ["太郎", "花子", "より", "賢い"],
-        "comp": {
-            "start": 1, "end": 2, "label": "prej"}
-            "start": 0, "end": 4, "label": "root"}
-        }
-    }
-    """
-    line_split = line.split(" ", 1)
-    ID, text = line_split[0], line_split[1]
-    return delinearize_annotations(text, ID = ID)
-
-_RE_COMMENT = re.compile(r"^//\s*(?P<comment>.*)")
-
-def read_bracket_annotation_file(stream: TextIO):
-    comment_reservoir: List[str] = []
-    record_reservoir: Optional[CompRecord] = None
-
-    for line in map(str.strip, stream):
-        match_comment: Match[str] | None = _RE_COMMENT.match(line)
-
-        if not line:
-            continue
-        elif match_comment:
-            comment_reservoir.append(match_comment.group("comment"))
-        else:
-            # generate the previous record
-            if record_reservoir:
-                if comment_reservoir:
-                    record_reservoir["comments"] = [com for com in comment_reservoir]
-                    comment_reservoir.clear()
-
-                yield record_reservoir
-            
-            record_reservoir = delinearize_ID_annotations(line)
-
-    if record_reservoir:
-        if comment_reservoir:
-            record_reservoir["comments"] = [com for com in comment_reservoir]
-            comment_reservoir.clear()
-
-        yield record_reservoir
+from abctk.obj.comparative.obj import *
 
 class MatchSpanResult(IntEnum):
     CORRECT = auto()
@@ -295,15 +23,15 @@ def match_CompSpan(
     reference: CompSpan,
     strata: Mapping[str, int] = defaultdict(lambda: 0, root = 1),
 ):
-    eq_span = reference["start"] == prediction["start"] and reference["end"] == prediction["end"]
+    eq_span = reference.start == prediction.start and reference.end == prediction.end
 
     crossing_span = (
-        (reference["start"] <= prediction["start"] < reference["end"])
-        or (prediction["start"] <= reference["start"] < prediction["end"])
+        (reference.start <= prediction.start < reference.end)
+        or (prediction.start <= reference.start < prediction.end)
     )
 
-    eq_label = reference["label"] == prediction["label"]
-    eq_strata = strata[reference["label"]] == strata[prediction["label"]]
+    eq_label = reference.label == prediction.label
+    eq_strata = strata[reference.label] == strata[prediction.label]
 
     results = (eq_span, crossing_span, eq_label, eq_strata)
 
@@ -339,21 +67,21 @@ def print_AlignResult(
         ref, match_result = alignment.map_pred_to_ref[p]
         if match_result == MatchSpanResult.CORRECT:
             printed.append(
-                f"ref: {print_CompSpan(reference[ref])}     ↔ pred: {print_CompSpan(pred_span)}      ✓"
+                f"ref: {reference[ref]}     ↔ pred: {pred_span}      ✓"
             )
         elif match_result == MatchSpanResult.SPURIOUS:
             printed.append(
-                f"ref: NONE      ↔ pred: {print_CompSpan(pred_span)}"
+                f"ref: NONE      ↔ pred: {pred_span}"
             )
         else:
             printed.append(
-                f"ref: {print_CompSpan(reference[ref])}      ↔ pred: {print_CompSpan(pred_span)}      {match_result.name}"
+                f"ref: {reference[ref]}      ↔ pred: {pred_span}      {match_result.name}"
             )
     for r, ref_span in enumerate(reference):
         pred, match_result = alignment.map_ref_to_pred[r]
         if match_result == MatchSpanResult.MISSING:
             printed.append(
-                f"ref: {print_CompSpan(ref_span)}      ↔ pred: None"
+                f"ref: {ref_span}      ↔ pred: None"
             )
 
     return printed
@@ -483,13 +211,13 @@ def calc_prediction_metrics(
 
         for p, pred_span in enumerate(pred):
             _, pred_ref_jud = align_res.map_pred_to_ref[p]
-            result_bin[pred_span["label"]][pred_ref_jud] += 1
+            result_bin[pred_span.label][pred_ref_jud] += 1
 
         for r, ref_span in enumerate(ref):
             pred_index, ref_pred_jud = align_res.map_ref_to_pred[r]
             if pred_index < 0:
                 # count SPURIOUS
-                result_bin[ref_span["label"]][ref_pred_jud] += 1
+                result_bin[ref_span.label][ref_pred_jud] += 1
 
     # ------
     # Calc spanwise scores
