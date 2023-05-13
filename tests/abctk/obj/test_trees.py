@@ -48,7 +48,7 @@ RAW_TREES_WITH_ID_COMMENTS = (
         "4_aozora_Chiri-1956;JP",
     ),
     (
-        "( (COMMENT {probability=-18.01902198791504}) (Sm (PPs (NPq (N (<N/N> asdf) (N adsf))) (<NP\\PPs> dsf)) (<PPs\\Sm> (CPt (Ssub (<Ssub/Ssub> (<Ssub/Ssub> (NP (N (Ns sdf) (<Ns\\N> sdfg)))) (<<Ssub/Ssub>\\<Ssub/Ssub>> 、)) (Ssub (<Ssub/Ssub> sdfg) (Ssub (PPs (PPs (NP (N (NUM sgfd)) (<N\\NP> fg))) (<PPs\\PPs> 、)) (<PPs\\Ssub> (<<PPs\\Ssub>/<PPs\\Ssub>> (<PPs\\Sa> (N gfh))) (<PPs\\Ssub> (<<PPs\\Ssub>/<PPs\\Ssub>> (NPq (N fgh)) (<NP\\<<PPs\\Ssub>/<PPs\\Ssub>>> wrt)) (<PPs\\Ssub> (<PPs\\Ssub> (<PPs\\Ssub> fgh) (<Ssub\\Ssub> fgh)) (<Ssub\\Ssub> dfhfhd))))))) (<Ssub\\CPt> sgf)) (<CPt\\<PPs\\Sm>> (<CPt\\<PPs\\Sm>> (<CPt\\<PPs\\Sm>> zcxv) (<Sm\\Sm> wrtasd)) (<Sm\\Sm> 。)))) (ID ABCT-COMP-BCCWJ;yori;LBl5_00051,85650))",
+        "( (COMMENT {probability=-18.01902198791504}) (Sm (PPs (NPq (N (<N/N> cat) (N dog))) (<NP\\PPs> table)) (<PPs\\Sm> (CPt (Ssub (<Ssub/Ssub> (<Ssub/Ssub> (NP (N (Ns car) (<Ns\\N> chair)))) (<<Ssub/Ssub>\\<Ssub/Ssub>> and)) (Ssub (<Ssub/Ssub> star) (Ssub (PPs (PPs (NP (N (NUM three)) (<N\\NP> book))) (<PPs\\PPs> and)) (<PPs\\Ssub> (<<PPs\\Ssub>/<PPs\\Ssub>> (<PPs\\Sa> (N computer))) (<PPs\\Ssub> (<<PPs\\Ssub>/<PPs\\Ssub>> (NPq (N apple)) (<NP\\<<PPs\\Ssub>/<PPs\\Ssub>>> pen)) (<PPs\\Ssub> (<PPs\\Ssub> (<PPs\\Ssub> water) (<Ssub\\Ssub> paper)) (<Ssub\\Ssub> television))))))) (<Ssub\\CPt> bird)) (<CPt\\<PPs\\Sm>> (<CPt\\<PPs\\Sm>> (<CPt\\<PPs\\Sm>> flower) (<Sm\\Sm> window)) (<Sm\\Sm> house)))) (ID ABCT-COMP-BCCWJ;yori;LBl5_00051,85650))",
         "ABCT-COMP-BCCWJ;yori;LBl5_00051,85650"
     )
 )
