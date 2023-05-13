@@ -76,10 +76,25 @@ class Annot(Generic[X_co]):
         self, 
         pprinter_cat: Optional[
             Callable[[Any], str]
-        ] = None
+        ] = None,
+        hide_all_feats: bool = False,
+        feats_to_print: Sequence[str] = tuple(),
+        verbose_role: bool = False,
     ):
         """
         Prettyprint an ABC Treebank feature bundle.
+
+        Arguments
+        ---------
+        pprinter_cat
+            A pretty printer of underlying categories.
+        
+        hide_all_feats
+
+        feats_to_print
+        
+        verbose_role
+            Verbosely print `#role=none` if `True`.
 
         Examples
         --------
@@ -87,25 +102,35 @@ class Annot(Generic[X_co]):
         >>> label.annot_feat_pprint()
         '<NP/NP>#role=h#deriv=leave'
 
-        """
-        if "role" in self.feats:
-            role = f"#role={self.feats['role'].value}"
-        else:
-            role = ""
-        # === END IF===
+        >>> label = Annot.parse("COMMENT")
+        >>> label.annot_feat_pprint(verbose_role = False)
+        '<NP/NP>'
 
-        others = "".join(
-            f"#{k}={v}"
-            for k, v in self.feats.items()
-            if k not in ["role"]
+        >>> label = Annot.parse("COMMENT")
+        >>> label.annot_feat_pprint(verbose_role = True)
+        '<NP/NP>#role=none'
+        """
+        def _print_feat(key: str, value: Union[str, Enum], verbose_role: bool):
+            if key == "role" and value == DepMk.NONE and not verbose_role:
+                return ""
+            elif isinstance(value, Enum):
+                return f"#{key}={value.value}"
+            else:
+                return f"#{key}={value}"
+
+        feats_printed = "".join(
+            _print_feat(key, value, verbose_role = verbose_role)
+            for key, value 
+            in self.feats.items()
+            if not hide_all_feats or key in feats_to_print
         )
-        
+
         if pprinter_cat:
             cat = pprinter_cat(self.cat)
         else:
             cat = self.pprinter_cat(self.cat)
 
-        return f"{cat}{role}{others}"
+        return f"{cat}{feats_printed}"
 
     @classmethod
     def parse(
