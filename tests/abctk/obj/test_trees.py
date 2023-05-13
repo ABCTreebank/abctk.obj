@@ -91,12 +91,22 @@ def test_iter_leaves_with_branches(tree_raw: str, result):
 RAW_TREES_WITH_GDV = (
     (
         "(S (NP (PRP My) (NN daughter)) (VP (VBD broke) (NP (NP (DET the) (JJ red) (NN toy)) (PP (IN with) (NP (DET a) (NN hammer))))))",
-        ((2, "NP"), (1, "S"), (2, "VP"), (4, "NP"), (4, "NP"), (3, "NP"), (4, "PP"), (5, "NP")),
+        (
+            GRVCell("My", "PRP", 2, "NP"), 
+            GRVCell("daughter", "NN", -1, "S"), 
+            GRVCell("broke", "VBD", 1, "VP"),
+            GRVCell("the", "DET", 2, "NP"),
+            GRVCell("red", "JJ", 0, "NP"), 
+            GRVCell("toy", "NN", -1, "NP"), 
+            GRVCell("with", "IN", 1, "PP"), 
+            GRVCell("a", "DET", 1, "NP"),
+            GRVCell("hammer", "NN", 0, ""),
+        ),
     ),
 )
 
 @pytest.mark.parametrize("tree_raw, result", RAW_TREES_WITH_GDV)
-def test_encode_GRV(tree_raw: str, result):
+def test_encode_GRV(tree_raw: str, result: Sequence[GRVCell]):
     tree_parsed = tuple(yield_tree(lexer(io.StringIO(tree_raw))))[0]
 
     assert tuple(encode_GRV(tree_parsed)) == result

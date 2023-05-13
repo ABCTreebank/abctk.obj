@@ -1,4 +1,4 @@
-from typing import TextIO, Iterator, Tuple, List, Union, Sequence, Optional
+from typing import NamedTuple, TextIO, Iterator, Tuple, List, Union, Sequence, Optional
 from enum import IntEnum
 from collections.abc import Sequence as Seq
 import itertools
@@ -226,9 +226,16 @@ def iter_leaves_with_branches(tree: Tree)-> Iterator[Tuple[Tree, ...]]:
     else:
         yield (tree, )
 
-def encode_GRV(tree: Tree) -> Iterator[Tuple[int, str]]:
+class GRVCell(NamedTuple):
+    lexeme: str
+    lex_cat: str
+    height_diff: int
+    phrase_cat: str
+
+def encode_GRV(tree: Tree) -> Iterator[GRVCell]:
     """
-    Encode `tree` in the way described by [1]_.
+    Encode `tree` in the way described by [1]_. 
+    Relative scale is adopted.
 
     Notes
     -----
@@ -243,6 +250,7 @@ def encode_GRV(tree: Tree) -> Iterator[Tuple[int, str]]:
         tuple(get_label(node) for node in branch)
         for branch in iter_leaves_with_branches(tree)
     )
+    prev_height: int = 0
 
     if (current_leaf := next(iter_leaves, None)):
         for next_leaf in iter_leaves:
@@ -250,14 +258,22 @@ def encode_GRV(tree: Tree) -> Iterator[Tuple[int, str]]:
                 (
                     count_common_ancestors
                     for count_common_ancestors, (current_node, next_node)
-                    in enumerate(zip(current_leaf[:-1], next_leaf[:-1]))
+                    in enumerate(zip(current_leaf[:-2], next_leaf[:-2]))
                     if current_node != next_node
                 ),
-                None
+                len(current_leaf) - 2
             )
-            if match_idx is not None:
-                yield match_idx, current_leaf[match_idx - 1]
-            current_leaf = next_leaf
 
-def decode_GRV():
-    raise NotImplementedError
+            yield GRVCell(
+                current_leaf[-1], current_leaf[-2],
+                (match_idx - prev_height),
+                current_leaf[match_idx - 1]
+            )
+            prev_height = match_idx
+
+            current_leaf = next_leaf
+        
+        yield GRVCell(
+            current_leaf[-1], current_leaf[-2],
+            0, "",
+        )
