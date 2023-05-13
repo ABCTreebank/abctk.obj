@@ -57,7 +57,6 @@ RAW_TREES_WITH_ID_COMMENTS = (
 def test_split_ID_from_tree(ID_parser: RecordIDParser, tree_raw: str, ID_raw: str):
     tree_parsed = tuple(yield_tree(lexer(io.StringIO(tree_raw))))[0]
 
-    ID, tree = split_ID_from_tree(tree_parsed, ID_parser)
+    ID, _ = split_ID_from_tree(tree_parsed, ID_parser)
 
-    print(tree)
     assert ID_parser.parse(ID_raw) == ID
