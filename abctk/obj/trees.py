@@ -11,7 +11,9 @@ def is_terminal(tree) -> bool:
     return isinstance(tree, str)
 
 def inspect_pre_terminal(tree) -> Optional[tuple[str, str]]:
-    if (res := inspect_nonterminal(tree)):
+    if is_terminal(tree):
+        return None
+    elif (res := inspect_nonterminal(tree)):
         if len(res[1]) == 1 and isinstance(res[1][0], str):
             return res[0], res[1][0]
         else:
@@ -20,7 +22,9 @@ def inspect_pre_terminal(tree) -> Optional[tuple[str, str]]:
         return None
 
 def inspect_nonterminal(tree) -> Optional[Tuple[str, Sequence[Tree]]]:
-    if isinstance(tree, Seq) and len(tree) > 0:
+    if is_terminal(tree):
+        return None
+    elif isinstance(tree, Seq) and len(tree) > 0:
         label = tree[0]
         if isinstance(label, str):
             return tree[0], tree[1:]
@@ -29,6 +33,14 @@ def inspect_nonterminal(tree) -> Optional[Tuple[str, Sequence[Tree]]]:
     else:
         return None
 
+def get_label(tree: Tree) -> str:
+    if is_terminal(tree):
+        return tree # type: ignore
+    elif (res := inspect_nonterminal(tree)):
+        return res[0]
+    else:
+        raise TypeError
+    
 def healthcheck(tree, deep: bool = False) -> bool:
     return (
         is_terminal(tree)
@@ -44,7 +56,8 @@ def healthcheck(tree, deep: bool = False) -> bool:
 
 def is_comment(tree: Tree) -> bool:
     return bool(
-        (res := inspect_nonterminal(tree))
+        not is_terminal(tree)
+        and (res := inspect_nonterminal(tree))
         and res[0] == "COMMENT"
     )
 
