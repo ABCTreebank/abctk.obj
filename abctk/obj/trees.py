@@ -277,3 +277,43 @@ def encode_GRV(tree: Tree) -> Iterator[GRVCell]:
             current_leaf[-1], current_leaf[-2],
             0, "",
         )
+
+def decode_GRV(cells: Iterator[GRVCell]):
+    # Initial cell
+    initial_cell = next(cells)
+    new_node: Tree = ["" ]
+    tree_pointer: list[Tree] = [new_node]
+    for _ in range(initial_cell.height_diff - 1):
+        child: Tree = ["" ]
+        tree_pointer[-1].append(child) # type: ignore
+        tree_pointer.append(child)
+    
+    tree_pointer[-1][0] = initial_cell.phrase_cat # type: ignore
+    lex_node: Tree = [initial_cell.lex_cat, initial_cell.lexeme]
+    tree_pointer[-1].append(lex_node) # type: ignore
+    
+    for cell in cells:
+        if cell.height_diff > 0:
+            # grow edges
+            for _ in range(cell.height_diff):
+                child = ["" ]
+                tree_pointer[-1].append(child) # type: ignore
+                tree_pointer.append(child)
+
+            tree_pointer[-1][0] = cell.phrase_cat # type: ignore
+            tree_pointer[-1].append([cell.lex_cat, cell.lexeme]) # type: ignore
+        elif cell.height_diff == 0:
+            # adjoint lexeme to the pointer
+            # (the relevant node on the last branch)
+            tree_pointer[-1].append([cell.lex_cat, cell.lexeme]) # type: ignore
+        else:
+            # adjoint lexeme to the pointer
+            # (the relevant node on the last branch)
+            tree_pointer[-1].append([cell.lex_cat, cell.lexeme]) # type: ignore
+
+            # move back the pointer
+            tree_pointer = tree_pointer[:cell.height_diff]
+
+            tree_pointer[-1][0] = cell.phrase_cat # type: ignore
+
+    return tree_pointer[0]
