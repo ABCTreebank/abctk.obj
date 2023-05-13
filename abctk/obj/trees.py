@@ -198,3 +198,66 @@ def split_ID_from_tree(
             return SimpleRecordID(""), tree
     else:
         return SimpleRecordID(""), tree
+
+def iter_leaves_with_branches(tree: Tree)-> Iterator[Tuple[Tree, ...]]:
+    if inspect_nonterminal(tree):
+        pointer_stack: List[Tuple[Tree, int, int]] = [(tree, 1, len(tree))]
+        while pointer_stack:
+            current_node, idx_current_child, count_children = pointer_stack.pop()
+            if idx_current_child < count_children:
+                pointer_stack.append(
+                    (current_node, idx_current_child + 1, count_children)
+                )
+
+                current_leftmost_child = current_node[idx_current_child]
+
+                if inspect_nonterminal(current_leftmost_child):
+                    pointer_stack.append(
+                        (current_leftmost_child, 1, len(current_leftmost_child))
+                    )
+                else:
+                    yield (
+                        *(label for label, _, _ in pointer_stack),
+                        current_leftmost_child,
+                    )
+            # else:
+                # all children are consumed
+                # just discard
+    else:
+        yield (tree, )
+
+def encode_GRV(tree: Tree) -> Iterator[Tuple[int, str]]:
+    """
+    Encode `tree` in the way described by [1]_.
+
+    Notes
+    -----
+    There must be no unary nodes (except for lexical nodes).
+    If any, they must be collapsed beforehand.
+
+    References
+    ----------
+    .. [1] Gómez-Rodríguez, C., & Vilares, D. (2018). Constituent Parsing as Sequence Labeling. In: Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 1314–1324. https://doi.org/10.18653/v1/D18-1162
+    """
+    iter_leaves: Iterator[tuple[str, ...]] = (
+        tuple(get_label(node) for node in branch)
+        for branch in iter_leaves_with_branches(tree)
+    )
+
+    if (current_leaf := next(iter_leaves, None)):
+        for next_leaf in iter_leaves:
+            match_idx = next(
+                (
+                    count_common_ancestors
+                    for count_common_ancestors, (current_node, next_node)
+                    in enumerate(zip(current_leaf[:-1], next_leaf[:-1]))
+                    if current_node != next_node
+                ),
+                None
+            )
+            if match_idx is not None:
+                yield match_idx, current_leaf[match_idx - 1]
+            current_leaf = next_leaf
+
+def decode_GRV():
+    raise NotImplementedError

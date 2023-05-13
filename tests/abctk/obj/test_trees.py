@@ -60,3 +60,43 @@ def test_split_ID_from_tree(ID_parser: RecordIDParser, tree_raw: str, ID_raw: st
     ID, _ = split_ID_from_tree(tree_parsed, ID_parser)
 
     assert ID_parser.parse(ID_raw) == ID
+
+RAW_TREES_WITH_BRANCHES = (
+    (
+        "(S (NP (PRP My) (NN daughter)) (VP (VBD broke) (NP (NP (DET the) (JJ red) (NN toy)) (PP (IN with) (NP (DET a) (NN hammer))))))",
+        (
+            ("S", "NP", "PRP", "My"),
+            ("S", "NP", "NN", "daughter"),
+            ("S", "VP", "VBD", "broke"),
+            ("S", "VP", "NP", "NP", "DET", "the"),
+            ("S", "VP", "NP", "NP", "JJ", "red"),
+            ("S", "VP", "NP", "NP", "NN", "toy"),
+            ("S", "VP", "NP", "PP", "IN", "with"),
+            ("S", "VP", "NP", "PP", "NP", "DET", "a"),
+            ("S", "VP", "NP", "PP", "NP", "NN", "hammer"),
+        )
+    ),
+)
+
+@pytest.mark.parametrize("tree_raw, result", RAW_TREES_WITH_BRANCHES)
+def test_iter_leaves_with_branches(tree_raw: str, result):
+    tree_parsed = tuple(yield_tree(lexer(io.StringIO(tree_raw))))[0]
+
+    assert tuple(
+        tuple(get_label(node) for node in branch)
+        for branch in iter_leaves_with_branches(tree_parsed)
+    ) == result
+
+
+RAW_TREES_WITH_GDV = (
+    (
+        "(S (NP (PRP My) (NN daughter)) (VP (VBD broke) (NP (NP (DET the) (JJ red) (NN toy)) (PP (IN with) (NP (DET a) (NN hammer))))))",
+        ((2, "NP"), (1, "S"), (2, "VP"), (4, "NP"), (4, "NP"), (3, "NP"), (4, "PP"), (5, "NP")),
+    ),
+)
+
+@pytest.mark.parametrize("tree_raw, result", RAW_TREES_WITH_GDV)
+def test_encode_GRV(tree_raw: str, result):
+    tree_parsed = tuple(yield_tree(lexer(io.StringIO(tree_raw))))[0]
+
+    assert tuple(encode_GRV(tree_parsed)) == result
