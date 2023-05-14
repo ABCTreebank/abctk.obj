@@ -1,4 +1,4 @@
-from typing import NamedTuple, TextIO, Iterator, Tuple, List, Union, Sequence, Optional
+from typing import Callable, NamedTuple, TextIO, Iterator, Tuple, List, Union, Sequence, Optional
 from enum import IntEnum
 from collections.abc import Sequence as Seq
 import itertools
@@ -378,3 +378,123 @@ def decode_GRV(cells: Iterator[GRVCell]):
             tree_pointer[-1][0] = cell.phrase_cat # type: ignore
 
     return tree_pointer[0]
+
+def split_lexical_nodes(
+    tree: Tree, 
+    splitter: Iterator[int],
+    lex_filter: Callable[[str], bool] = lambda _: True,
+) -> Tree:
+    """
+    Split lexical nodes of `tree` which match with `lex_filter`.
+    `splitter` specifies the number of characters of each split.
+    """
+    _, result = _split_lexical_nodes_internal(
+        tree,
+        splitter,
+        lex_filter,
+    )
+    return result
+
+def _split_lexical_nodes_internal(
+    tree: Tree, 
+    splitter: Iterator[int],
+    lex_filter: Callable[[str], bool] = lambda _: True,
+) -> Tuple[Iterator[int], Tree]:
+    if is_terminal(tree):
+        return splitter, tree
+    elif (res := inspect_pre_terminal(tree)) and lex_filter(res[1]):
+        # a pre-lexical node is found
+
+        lex_cat, lex = res
+
+        len_node_char = len(lex)
+        remaining_split_char_len: int = next(splitter)
+
+        if len_node_char > remaining_split_char_len:
+            # splitting the lexical node is necessary
+
+            #       ======
+            #    ============
+            # ===================   --- node
+            # ^                     --- current_node_char_pos
+            # ****                  --- remaining_split_char_len
+
+            current_node_char_pos: int = 0
+            # get the lexical category
+            lex_category_part = f"{lex_cat}-PART"
+
+            # do the first splitting
+            #       ======
+            #    ============
+            # ====|==============   --- split-children
+            #      ^                --- forward current_node_char_pos
+            #      ****             --- retrieve remaining_split_char_len
+            split_children = [
+                [
+                    lex_category_part, 
+                    lex[current_node_char_pos:remaining_split_char_len]
+                ]
+            ]
+            current_node_char_pos += remaining_split_char_len
+            remaining_split_char_len = next(splitter)
+
+            # do the remaining splitting
+            while len_node_char - current_node_char_pos > remaining_split_char_len:
+                #       ======
+                #    ============
+                #     |==============   --- node
+                #      ^                --- current_node_char_pos
+                #      *******          --- remaining_split_char_len remaining_split_char_len
+                split_children.append(
+                    [
+                        lex_category_part, 
+                        lex[current_node_char_pos:(current_node_char_pos + remaining_split_char_len)]
+                    ]
+                )
+                current_node_char_pos += remaining_split_char_len
+                remaining_split_char_len = next(splitter)
+            # === END WHILE ===
+
+            # append the last piece
+
+            #       ======
+            #    ============
+            #     |      |    |==   --- node
+            #                  ^    --- current_node_char_pos
+            #                  ******  --- remaining_split_char_len
+            split_children.append(
+                [
+                    lex_category_part, 
+                    lex[current_node_char_pos:]
+                ]
+            )
+
+            if (diff := remaining_split_char_len - len_node_char + current_node_char_pos) > 0:
+                splitter = itertools.chain((diff, ), splitter)
+
+            return splitter, [lex_cat, *split_children]
+
+
+        elif (diff := remaining_split_char_len - len_node_char) > 0:
+            #       ======
+            #    ============
+            # ==================   --- node
+            # *************************  --- remaining_split_char_len
+
+            # no splitting
+
+            # the difference between the two will be carried over
+            return itertools.chain( (diff, ), splitter), list(tree)
+        else:
+            return splitter, list(tree)
+    elif not is_comment(tree) and (res := inspect_nonterminal(tree)):
+        new_children = []
+        for child in res[1]:
+            splitter, new_child = _split_lexical_nodes_internal(child, splitter, lex_filter)
+            new_children.append(new_child)
+
+        return splitter, [res[0], *new_children]
+    else:
+        raise TypeError(
+            f"Incorrect type {type(tree)} of the argument tree {tree}"
+        )

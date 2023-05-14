@@ -105,8 +105,41 @@ RAW_TREES_WITH_GDV = (
     ),
 )
 
-@pytest.mark.parametrize("tree_raw, result", RAW_TREES_WITH_GDV)
-def test_encode_GRV(tree_raw: str, result: Sequence[GRVCell]):
-    tree_parsed = tuple(yield_tree(lexer(io.StringIO(tree_raw))))[0]
+RAW_TREES_WITH_SPLITTER = (
+    ( 
+        "(PP (NP (PP (NP (PP (NP (PP (NP (TRACE *T*) (NPR 北海道)) (P の)) (N 南)) (P の)) (N 方)) (P の)) (PU 、) (D とある) (PP __pro) (N アイヌ部落)) (P に))",
+        (2, 2, 3, 1, 1, 1, 2, 3, 2, 1, 9999, 9999),
+        """
+(PP (NP (PP (NP (PP (NP (PP (NP (TRACE *T*)
+                                (NPR (NPR-PART 北海)
+                                     (NPR-PART 道)))
+                            (P の)) 
+                        (N 南)) 
+                    (P の)) 
+                (N 方)) 
+            (P の)) 
+        (PU 、) 
+        (D (D-PART と) 
+           (D-PART ある))
+        (PP __pro) 
+        (N (N-PART アイヌ) 
+           (N-PART 部落)))
+    (P に))
+""",
+    ),
+)
 
-    assert tuple(encode_GRV(tree_parsed)) == result
+@pytest.mark.parametrize("tree_raw, splitter, result_raw", RAW_TREES_WITH_SPLITTER)
+def test_encode_GRV(
+    tree_raw: str, 
+    splitter: Tuple[int, ...], 
+    result_raw: str
+):
+    tree_parsed = tuple(yield_tree(lexer(io.StringIO(tree_raw))))[0]
+    result_raw_parsed = tuple(yield_tree(lexer(io.StringIO(result_raw))))[0]
+
+    assert split_lexical_nodes(
+        tree_parsed,
+        iter(splitter),
+        lex_filter = lambda x: not (x.startswith("*") or x.startswith("__")),
+    ) == result_raw_parsed
