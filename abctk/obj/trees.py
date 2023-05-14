@@ -2,6 +2,7 @@ from typing import NamedTuple, TextIO, Iterator, Tuple, List, Union, Sequence, O
 from enum import IntEnum
 from collections.abc import Sequence as Seq
 import itertools
+import re
 
 from abctk.obj.ID import RecordID, SimpleRecordID, RecordIDParser
 
@@ -108,6 +109,7 @@ class LexCategory(IntEnum):
     PAREN_CLOSE = 2
     NODE = 127
 
+_RE_WHITESPACE = re.compile(r"\s+")
 def lexer(stream: TextIO) -> Iterator[tuple[LexCategory, str]]:
     """
     Tokenize trees in the S-expression format to facilitate parsing of them.
@@ -137,7 +139,7 @@ def lexer(stream: TextIO) -> Iterator[tuple[LexCategory, str]]:
                 buffer.clear()
 
             yield (LexCategory.PAREN_CLOSE, current_char)
-        elif current_char == " ":
+        elif _RE_WHITESPACE.match(current_char):
             if buffer:
                 yield (LexCategory.NODE, "".join(buffer))
                 buffer.clear()
