@@ -7,6 +7,10 @@ from abctk.obj.ID import RecordID, SimpleRecordID, RecordIDParser
 
 # TODO: introduce TypeGuard (> 3.10)
 Tree = Union[str, Sequence["Tree"]]
+"""
+The union type of types which are counted as a tree.
+"""
+
 def is_terminal(tree) -> bool:
     return isinstance(tree, str)
 
@@ -105,6 +109,17 @@ class LexCategory(IntEnum):
     NODE = 127
 
 def lexer(stream: TextIO) -> Iterator[tuple[LexCategory, str]]:
+    """
+    Tokenize trees in the S-expression format to facilitate parsing of them.
+
+    Yields
+    ------
+    lexical_category : LexCategory
+        The type of the token.
+
+    word : str
+        The actual string.
+    """
     current_char: str = stream.read(1)
 
     buffer: list[str] = []
@@ -136,6 +151,19 @@ def lexer(stream: TextIO) -> Iterator[tuple[LexCategory, str]]:
         buffer.clear()
 
 def yield_tree(lexemes: Iterator[tuple[LexCategory, str]]) -> Iterator[Tree]:
+    """
+    Parse trees in the S-expression format.
+    Data should be tokenized with :func:`lexer` beforehand.
+
+    Yields
+    ------
+    lexical_category : LexCategory
+        The type of the token.
+
+    word : str
+        The actual string.
+    """
+
     subtree_stack: list[list] = []
 
     for (lexcat, node) in lexemes:
@@ -172,6 +200,21 @@ def split_ID_from_tree(
     tree: Tree, 
     ID_parser: Optional[RecordIDParser] = None
 ) -> Tuple[RecordID, Tree]:
+    """
+    Split the ID (if there is any) and the content in `tree`.
+    The ID is tagged in the way the CorpusSearch project [1]_ recommends.
+
+    Arguments
+    ---------
+    tree
+
+    ID_parser
+        A parser of IDs. A default is used when no instance is provided.
+
+    References
+    ----------
+    .. [1] https://corpussearch.sourceforge.net/CS-manual/YourCorpus.html#ID
+    """
     ID_parser = ID_parser or RecordIDParser()
 
     if inspect_nonterminal(tree):
@@ -227,6 +270,10 @@ def iter_leaves_with_branches(tree: Tree)-> Iterator[Tuple[Tree, ...]]:
         yield (tree, )
 
 class GRVCell(NamedTuple):
+    """
+    Represents a cell of an encoded tree.
+    Used for :func:`encode_GRV` and :func:`decode_GRV`
+    """
     lexeme: str
     lex_cat: str
     height_diff: int
@@ -279,6 +326,18 @@ def encode_GRV(tree: Tree) -> Iterator[GRVCell]:
         )
 
 def decode_GRV(cells: Iterator[GRVCell]):
+    """
+    Decode a tree encoded in the way described by [1]_. 
+    Relative scale is assumed.
+
+    Notes
+    -----
+    Collapsed unary nodes is to be expanded manually after the decoding.
+
+    References
+    ----------
+    .. [1] Gómez-Rodríguez, C., & Vilares, D. (2018). Constituent Parsing as Sequence Labeling. In: Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 1314–1324. https://doi.org/10.18653/v1/D18-1162
+    """
     # Initial cell
     initial_cell = next(cells)
     new_node: Tree = ["" ]
