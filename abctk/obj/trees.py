@@ -277,6 +277,33 @@ def iter_leaves_with_branches(tree: Tree)-> Iterator[Tuple[Tree, ...]]:
     else:
         yield (tree, )
 
+def iter_terminals(tree: Tree) -> Iterator[str]:
+    pointer_stack = [tree]
+    while pointer_stack:
+        current_node = pointer_stack.pop()
+        if isinstance(current_node, str):
+            yield current_node
+        elif (res := inspect_nonterminal(current_node)):
+            pointer_stack.extend(reversed(res[1]))
+
+def replace_terminals(tree: Tree, terminals: Iterator[str]) -> Tree:
+    """
+    Note
+    ----
+    Non-destructive.
+    """
+    if isinstance(tree, str):
+        return next(terminals)
+    elif (res := inspect_nonterminal(tree)):
+        new_children = [
+            replace_terminals(child, terminals)
+            for child in res[1]
+        ]
+        return [res[0], *new_children]
+    else:
+        return tree
+
+
 class GRVCell(NamedTuple):
     """
     Represents a cell of an encoded tree.
