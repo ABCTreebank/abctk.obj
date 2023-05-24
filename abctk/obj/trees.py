@@ -383,7 +383,7 @@ def decode_GRV(cells: Iterator[GRVCell]):
         tree_pointer.append(child)
     
     tree_pointer[-1][0] = initial_cell.phrase_cat # type: ignore
-    lex_node: Tree = [initial_cell.lex_cat, initial_cell.lexeme]
+    lex_node: Tree = [initial_cell.lex_cat, initial_cell.form]
     tree_pointer[-1].append(lex_node) # type: ignore
     
     for cell in cells:
