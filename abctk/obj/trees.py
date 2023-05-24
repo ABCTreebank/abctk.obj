@@ -26,6 +26,12 @@ def inspect_pre_terminal(tree) -> Optional[tuple[str, str]]:
     else:
         return None
 
+def inspect_unary(tree) -> Optional[Tuple[str, Tree]]:
+    if (res := inspect_nonterminal(tree)) and len(res[1]) == 1:
+        return res[0], res[1][0]
+    else:
+        return None
+    
 def inspect_nonterminal(tree) -> Optional[Tuple[str, Sequence[Tree]]]:
     if is_terminal(tree):
         return None
@@ -379,3 +385,41 @@ def decode_GRV(cells: Iterator[GRVCell]):
 
     return tree_pointer[0]
 
+def merge_unary_nodes(tree: Tree, comma: str = "☆", topmost: bool = True) -> Tuple[Tree, str]:
+    if isinstance(tree, str):
+        return tree, ""
+    elif (res := inspect_unary(tree)):
+        # unary
+        only_child = res[1]
+        child_res, child_labels = merge_unary_nodes(only_child, comma, topmost = False)
+        new_label = f"{res[0]}{comma}{child_labels}" if child_labels else res[0]
+        if topmost:
+            return [new_label, child_res], ""
+        else:
+            return child_res, new_label
+    elif (res := inspect_nonterminal(tree)):
+        children_res = (
+            merge_unary_nodes(child, comma, topmost = False)[0]
+            for child in res[1]
+        )
+        return [res[0], *children_res], ""
+    else:
+        return tree, ""
+
+def unfold_unary_nodes(tree: Tree, comma: str = "☆") -> Tree:
+    if isinstance(tree, str):
+        return tree
+    elif (res := inspect_nonterminal(tree)):
+        label, children = res
+        label_split = label.split(comma)
+        
+        latest_label = label_split.pop()
+        result_tree = [latest_label, *children]
+
+        while label_split:
+            latest_label = label_split.pop()
+            result_tree = [latest_label, result_tree]
+
+        return result_tree
+    else:
+        return tree
