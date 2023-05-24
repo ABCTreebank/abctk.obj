@@ -276,7 +276,7 @@ class GRVCell(NamedTuple):
     Represents a cell of an encoded tree.
     Used for :func:`encode_GRV` and :func:`decode_GRV`
     """
-    lexeme: str
+    form: str
     lex_cat: str
     height_diff: int
     phrase_cat: str
