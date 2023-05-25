@@ -354,7 +354,7 @@ def encode_GRV(tree: Tree) -> Iterator[GRVCell]:
             prev_height = match_idx
 
             current_leaf = next_leaf
-        
+
         yield GRVCell(
             current_leaf[-1], current_leaf[-2],
             0, "",
@@ -426,7 +426,7 @@ def merge_unary_nodes(tree: Tree, comma: str = "☆", topmost: bool = True) -> T
             return child_res, new_label
     elif (res := inspect_nonterminal(tree)):
         children_res = (
-            merge_unary_nodes(child, comma, topmost = False)[0]
+            merge_unary_nodes(child, comma, topmost = True)[0]
             for child in res[1]
         )
         return [res[0], *children_res], ""
