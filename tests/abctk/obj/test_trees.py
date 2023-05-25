@@ -103,4 +103,19 @@ RAW_TREES_WITH_GDV = (
             GRVCell("hammer", "NN", 0, ""),
         ),
     ),
+    (
+        "(IP-MAT (ADJI ありがとう) (VB2 ござい) (AX ます))",
+        (
+            GRVCell("ありがとう", "ADJI", 1, "IP-MAT"),
+            GRVCell("ござい", "VB2", 0, "IP-MAT"),
+            GRVCell("ます", "AX", 0, ""),
+        )
+    )
 )
+@pytest.mark.parametrize("tree_raw, result", RAW_TREES_WITH_GDV)
+def test_encode_GRV(tree_raw: str, result):
+    tree_parsed = tuple(yield_tree(lexer(io.StringIO(tree_raw))))[0]
+    tree_encoded = tuple(encode_GRV(tree_parsed))
+
+    print(tree_encoded)
+    assert tree_encoded == result
