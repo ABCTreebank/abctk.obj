@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "abctk.obj"
-version = "0.7.0"
+version = "0.7.1"
 description = "Python datatype declaration and related functions for the ABC Treebank and related projects"
 authors = ["Nori Hayashi <net@hayashi-lin.net>"]
 packages = [
