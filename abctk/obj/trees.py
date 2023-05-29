@@ -158,7 +158,7 @@ def lexer(stream: TextIO) -> Iterator[tuple[LexCategory, str]]:
         yield (LexCategory.NODE, "".join(buffer))
         buffer.clear()
 
-def yield_tree(lexemes: Iterator[tuple[LexCategory, str]]) -> Iterator[Tree]:
+def yield_tree(forms: Iterator[tuple[LexCategory, str]]) -> Iterator[Tree]:
     """
     Parse trees in the S-expression format.
     Data should be tokenized with :func:`lexer` beforehand.
@@ -174,7 +174,7 @@ def yield_tree(lexemes: Iterator[tuple[LexCategory, str]]) -> Iterator[Tree]:
 
     subtree_stack: list[list] = []
 
-    for (lexcat, node) in lexemes:
+    for (lexcat, node) in forms:
         if lexcat == LexCategory.PAREN_OPEN:
             # (
             new_subtree = []
@@ -395,15 +395,15 @@ def decode_GRV(cells: Iterator[GRVCell]):
                 tree_pointer.append(child)
 
             tree_pointer[-1][0] = cell.phrase_cat # type: ignore
-            tree_pointer[-1].append([cell.lex_cat, cell.lexeme]) # type: ignore
+            tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
         elif cell.height_diff == 0:
-            # adjoint lexeme to the pointer
+            # adjoint form to the pointer
             # (the relevant node on the last branch)
-            tree_pointer[-1].append([cell.lex_cat, cell.lexeme]) # type: ignore
+            tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
         else:
-            # adjoint lexeme to the pointer
+            # adjoint form to the pointer
             # (the relevant node on the last branch)
-            tree_pointer[-1].append([cell.lex_cat, cell.lexeme]) # type: ignore
+            tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
 
             # move back the pointer
             tree_pointer = tree_pointer[:cell.height_diff]
