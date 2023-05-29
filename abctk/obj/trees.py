@@ -344,7 +344,7 @@ class Tree(NamedTuple):
         self, 
         concat: Callable[[X, X], X] = lambda x, y: f"{x}☆{y}", # type: ignore
     ) -> "Tree":
-        if self.is_terminal():
+        if self.is_terminal() or self.inspect_preterminal():
             return self
         elif (res := self.inspect_unary()):
             label, only_child = res
