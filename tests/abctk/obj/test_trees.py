@@ -113,6 +113,18 @@ class TestTree:
             for branch in tree_parsed.iter_leaves_with_branches()
         ) == result
 
+    TREES_WITH_SPELLOUT = (
+        (
+            "(IP-MAT (ADJI ありがとう) (VB2 ござい) (AX ます))",
+            "ありがとうございます"
+        ),
+    )
+    @pytest.mark.parametrize("tree_raw, spellout", TREES_WITH_SPELLOUT)
+    def test_iter_terminals(self, tree_raw: str, spellout: str):
+        tree_parased = next(Tree.parse_stream(io.StringIO(tree_raw)))
+
+        assert "".join(tree_parased.iter_terminals()) == spellout
+
 class TestGRVCell:
     RAW_TREES_WITH_GDV = (
         (

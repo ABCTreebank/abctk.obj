@@ -320,7 +320,7 @@ class Tree(NamedTuple):
         pointer_stack = [self]
         while pointer_stack:
             current_node = pointer_stack.pop()
-            if isinstance(current_node, str):
+            if current_node.is_terminal():
                 yield current_node.label
             elif current_node.is_nonterminal():
                 pointer_stack.extend(reversed(current_node.children))
