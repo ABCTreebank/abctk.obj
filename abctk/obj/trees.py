@@ -446,39 +446,55 @@ class GRVCell(NamedTuple):
         """
         # Initial cell
         initial_cell = next(cells)
-        new_node: Tree = Tree("")
+        new_node: Tree = Tree("", [])
         tree_pointer: list[Tree] = [new_node]
         for _ in range(initial_cell.height_diff - 1):
-            child: Tree = Tree("")
-            tree_pointer[-1].append(child) # type: ignore
+            child: Tree = Tree("", [])
+            tree_pointer[-1].children.append(child) # type: ignore
             tree_pointer.append(child)
-        
-        tree_pointer[-1][0] = initial_cell.phrase_cat # type: ignore
-        lex_node: Tree = Tree(initial_cell.lex_cat, (initial_cell.form, ))
-        tree_pointer[-1].append(lex_node) # type: ignore
-        
+
+        tree_pointer[-1] = Tree(
+            initial_cell.phrase_cat, # type: ignore
+            [
+                *tree_pointer[-1].children,
+                Tree(
+                    initial_cell.lex_cat, 
+                    [Tree(initial_cell.form, []), ]
+                ),
+            ]
+        )
+
         for cell in cells:
             if cell.height_diff > 0:
                 # grow edges
                 for _ in range(cell.height_diff):
-                    child = Tree("")
-                    tree_pointer[-1].append(child) # type: ignore
+                    child = Tree("", [])
+                    tree_pointer[-1].children.append(child) # type: ignore
                     tree_pointer.append(child)
 
-                tree_pointer[-1][0] = cell.phrase_cat # type: ignore
-                tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
+                tree_pointer[-1] = Tree(
+                    cell.phrase_cat, 
+                    [
+                        *tree_pointer[-1].children,
+                        Tree( cell.lex_cat, [Tree(cell.form, [])] )
+                    ]
+                )
             elif cell.height_diff == 0:
                 # adjoint form to the pointer
                 # (the relevant node on the last branch)
-                tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
+                tree_pointer[-1].children.append(
+                    Tree( cell.lex_cat, [Tree(cell.form, [])] )
+                ) # type: ignore
             else:
                 # adjoint form to the pointer
                 # (the relevant node on the last branch)
-                tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
+                tree_pointer[-1].children.append(
+                    Tree( cell.lex_cat, [Tree(cell.form, [])] )
+                ) # type: ignore
 
                 # move back the pointer
                 tree_pointer = tree_pointer[:cell.height_diff]
 
-                tree_pointer[-1][0] = cell.phrase_cat # type: ignore
+                tree_pointer[-1] = Tree( cell.phrase_cat, tree_pointer[-1].children ) # type: ignore
 
         return tree_pointer[0]
