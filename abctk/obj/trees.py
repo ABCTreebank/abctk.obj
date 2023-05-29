@@ -1,452 +1,484 @@
-from typing import Callable, NamedTuple, TextIO, Iterator, Tuple, List, Union, Sequence, Optional
+from typing import Callable, NamedTuple, TextIO, Iterator, Tuple, List, Union, Sequence, Optional, TypeVar, Generic, Iterable, Literal, Any
 from enum import IntEnum
-from collections.abc import Sequence as Seq
 import itertools
+from io import StringIO
 import re
 
 from abctk.obj.ID import RecordID, SimpleRecordID, RecordIDParser
 
-# TODO: introduce TypeGuard (> 3.10)
-Tree = Union[str, Sequence["Tree"]]
-"""
-The union type of types which are counted as a tree.
-"""
-
-def is_terminal(tree) -> bool:
-    return isinstance(tree, str)
-
-def inspect_pre_terminal(tree) -> Optional[tuple[str, str]]:
-    if is_terminal(tree):
-        return None
-    elif (res := inspect_nonterminal(tree)):
-        if len(res[1]) == 1 and isinstance(res[1][0], str):
-            return res[0], res[1][0]
-        else:
-            return None
-    else:
-        return None
-
-def inspect_unary(tree) -> Optional[Tuple[str, Tree]]:
-    if (res := inspect_nonterminal(tree)) and len(res[1]) == 1:
-        return res[0], res[1][0]
-    else:
-        return None
-    
-def inspect_nonterminal(tree) -> Optional[Tuple[str, Sequence[Tree]]]:
-    if is_terminal(tree):
-        return None
-    elif isinstance(tree, Seq) and len(tree) > 0:
-        label = tree[0]
-        if isinstance(label, str):
-            return tree[0], tree[1:]
-        else:
-            return None
-    else:
-        return None
-
-def get_label(tree: Tree) -> str:
-    if is_terminal(tree):
-        return tree # type: ignore
-    elif (res := inspect_nonterminal(tree)):
-        return res[0]
-    else:
-        raise TypeError
-    
-def healthcheck(tree, deep: bool = False) -> bool:
-    return (
-        is_terminal(tree)
-        or (
-            bool(res := inspect_nonterminal(tree))
-            and (
-                not deep or all(
-                healthcheck(child, deep) for child in tree[1:]
-                )
-            )
-        )
-    )
-
-def is_comment(tree: Tree) -> bool:
-    return bool(
-        not is_terminal(tree)
-        and (res := inspect_nonterminal(tree))
-        and res[0] == "COMMENT"
-    )
-
-def merge_comments(trees: Sequence[Tree]) -> Iterator[Tree]:
-    last_substantial_tree: Optional[Tree] = None
-    comment_trees: List[Tree] = []
-    comment_trees_init: List[Tree] = []
-    for tree in itertools.chain(trees, ( ("", ), )):
-        if is_comment(tree):
-            if last_substantial_tree:
-                comment_trees.append(tree)
-            else:
-                comment_trees_init.append(tree)
-        else:
-            # yield the previous tree with comments
-            if (
-                last_substantial_tree
-                and (res := inspect_nonterminal(last_substantial_tree))
-            ):
-                yield [res[0], *comment_trees_init, *res[1], *comment_trees]
-
-                # clear comments
-                comment_trees_init.clear()
-                comment_trees.clear()
-            elif is_terminal(last_substantial_tree):
-                yield ["", *comment_trees_init, last_substantial_tree, *comment_trees] # type: ignore
-
-                # clear comments
-                comment_trees_init.clear()
-                comment_trees.clear()
-            elif last_substantial_tree is None:
-                pass
-            else:
-                raise TypeError(f"Illegal tree found: {last_substantial_tree}")
-
-            # register the tree as the last one
-            last_substantial_tree = tree
-
-    yield from comment_trees_init
-    yield from comment_trees
-
+X = TypeVar("X")
 class LexCategory(IntEnum):
     PAREN_OPEN = 1
     PAREN_CLOSE = 2
     NODE = 127
 
 _RE_WHITESPACE = re.compile(r"\s+")
-def lexer(stream: TextIO) -> Iterator[tuple[LexCategory, str]]:
-    """
-    Tokenize trees in the S-expression format to facilitate parsing of them.
 
-    Yields
-    ------
-    lexical_category : LexCategory
-        The type of the token.
+class Tree(NamedTuple):
+    "A named tuple representing a tree."
+    label: Any
+    children: Sequence["Tree"] = tuple()
 
-    word : str
-        The actual string.
-    """
-    current_char: str = stream.read(1)
+    def __item__(self, index: int) -> "Tree":
+        return self.children[index]
 
-    buffer: list[str] = []
+    def __len__(self) -> int:
+        return len(self.children)
 
-    while current_char:
-        if current_char == "(":
-            if buffer:
-                yield (LexCategory.NODE, "".join(buffer))
-                buffer.clear()
-            yield (LexCategory.PAREN_OPEN, current_char)
+    def __str__(self):
+        buffer = StringIO()
+        self.print_stream(buffer)
+        return buffer.getvalue()
 
-        elif current_char == ")":
-            if buffer:
-                yield (LexCategory.NODE, "".join(buffer))
-                buffer.clear()
+    def solidify(self) -> "Tree":
+        """
+        Noramlize by replacing all of the child containers with :class:`tuple`s.
 
-            yield (LexCategory.PAREN_CLOSE, current_char)
-        elif _RE_WHITESPACE.match(current_char):
-            if buffer:
-                yield (LexCategory.NODE, "".join(buffer))
-                buffer.clear()
+        Notes
+        -----
+        Non-destructive.
+        """
+        return Tree(
+            self.label,
+            tuple(child.solidify() for child in self.children)
+        )
+
+    def print_stream(self, stream: TextIO, node_printer: Callable[[Any], str] = str):
+        if self.is_terminal():
+            stream.write(node_printer(self.label))
+            return
         else:
-            buffer.append(current_char)
+            stream.write(f"({node_printer(self.label)}")
+            for child in self.children:
+                stream.write(" ")
+                child.print_stream(stream, node_printer)
+            stream.write(")")
 
+    def is_terminal(self) -> bool:
+        return not self.children
+
+    def is_nonterminal(self) -> bool:
+        return bool(self.children)
+
+    def inspect_unary(self) -> Optional[Tuple[Any, "Tree"]]:
+        if len(self.children) == 1:
+            return self.label, self.children[0]
+        else:
+            return None
+
+    def inspect_preterminal(self) -> Optional[tuple[X, X]]:
+        "Find if the tree is a pre-terminal subtree. A pre-terminal subtree means a subtree with a unary terminal node."
+        if (res := self.inspect_unary()) and res[1].is_terminal():
+            return res[0], res[1].label
+        else:
+            return None
+
+    def is_comment(self) -> bool:
+        return self.label == "COMMENT"
+
+    @classmethod
+    def lower_comments(cls, trees: Sequence["Tree"]) -> Iterator["Tree"]:
+        """
+        Lower comment nodes.
+
+        Notes
+        -----
+        This function is non-destructive.
+        A new tree instance is generated.
+        """
+        last_substantial_tree: Optional[Tree] = None
+        comment_trees: List[Tree] = []
+        comment_trees_init: List[Tree] = []
+        for tree in itertools.chain(trees, ( Tree("", tuple()), )):
+            if tree.is_comment():
+                if last_substantial_tree:
+                    comment_trees.append(tree)
+                else:
+                    comment_trees_init.append(tree)
+            else:
+                # yield the previous tree with comments
+                if (
+                    last_substantial_tree
+                    and last_substantial_tree.is_nonterminal()
+                ):
+                    yield Tree(
+                        last_substantial_tree.label,
+                        (
+                            *comment_trees_init, 
+                            *last_substantial_tree.children,
+                            *comment_trees
+                        ),
+                    )
+                    # clear comments
+                    comment_trees_init.clear()
+                    comment_trees.clear()
+                elif last_substantial_tree and last_substantial_tree.is_terminal():
+                    yield Tree(
+                        "",
+                        (
+                            *comment_trees_init, 
+                            last_substantial_tree.label, 
+                            *comment_trees,
+                        )
+                    )
+
+                    # clear comments
+                    comment_trees_init.clear()
+                    comment_trees.clear()
+                elif last_substantial_tree is None:
+                    pass
+                else:
+                    raise TypeError(f"Illegal tree found: {last_substantial_tree}")
+
+                # register the tree as the last one
+                last_substantial_tree = tree
+
+        yield from comment_trees_init
+        yield from comment_trees
+
+    @staticmethod
+    def lexer(stream: TextIO) -> Iterator[tuple[LexCategory, str]]:
+        """
+        Tokenize trees in the S-expression format to facilitate parsing of them.
+
+        Yields
+        ------
+        lexical_category : LexCategory
+            The type of the token.
+
+        word : str
+            The actual string.
+        """
         current_char: str = stream.read(1)
 
-    if buffer:
-        yield (LexCategory.NODE, "".join(buffer))
-        buffer.clear()
+        buffer: list[str] = []
 
-def yield_tree(forms: Iterator[tuple[LexCategory, str]]) -> Iterator[Tree]:
-    """
-    Parse trees in the S-expression format.
-    Data should be tokenized with :func:`lexer` beforehand.
+        while current_char:
+            if current_char == "(":
+                if buffer:
+                    yield (LexCategory.NODE, "".join(buffer))
+                    buffer.clear()
+                yield (LexCategory.PAREN_OPEN, current_char)
 
-    Yields
-    ------
-    lexical_category : LexCategory
-        The type of the token.
+            elif current_char == ")":
+                if buffer:
+                    yield (LexCategory.NODE, "".join(buffer))
+                    buffer.clear()
 
-    word : str
-        The actual string.
-    """
+                yield (LexCategory.PAREN_CLOSE, current_char)
+            elif _RE_WHITESPACE.match(current_char):
+                if buffer:
+                    yield (LexCategory.NODE, "".join(buffer))
+                    buffer.clear()
+            else:
+                buffer.append(current_char)
 
-    subtree_stack: list[list] = []
+            current_char: str = stream.read(1)
 
-    for (lexcat, node) in forms:
-        if lexcat == LexCategory.PAREN_OPEN:
-            # (
-            new_subtree = []
+        if buffer:
+            yield (LexCategory.NODE, "".join(buffer))
+            buffer.clear()
+
+    @classmethod
+    def yield_tree_from_lexer(cls, forms: Iterator[tuple[LexCategory, str]]) -> Iterator["Tree"]:
+        """
+        Parse trees in the S-expression format.
+        Data should be tokenized with :func:`lexer` beforehand.
+
+        Yields
+        ------
+        lexical_category : LexCategory
+            The type of the token.
+
+        word : str
+            The actual string.
+        """
+
+        subtree_stack: List[
+            Union[Tree, Literal[LexCategory.PAREN_OPEN]]
+        ] = []
+
+        for lexcat, word in forms:
             if subtree_stack:
-                parent_subtree = subtree_stack[-1]
-                if parent_subtree:
-                    parent_subtree.append(new_subtree)
+                prev_subtree = subtree_stack.pop()
+                if prev_subtree == LexCategory.PAREN_OPEN:
+                    if lexcat == LexCategory.PAREN_OPEN:
+                        new_subtree = Tree("", [])
+                        if subtree_stack:
+                            subtree_stack[-1].children.append(new_subtree) # type: ignore
+                        subtree_stack.append(new_subtree)
+                        subtree_stack.append(lexcat)
+                    elif lexcat == LexCategory.PAREN_CLOSE:
+                        new_subtree = Tree("", [])
+                        if subtree_stack:
+                            subtree_stack[-1].children.append(new_subtree) # type: ignore
+                        subtree_stack.append(new_subtree)
+                    else:
+                        new_subtree = Tree(word, [])
+                        if subtree_stack:
+                            subtree_stack[-1].children.append(new_subtree) # type: ignore
+                        subtree_stack.append(new_subtree)
+                elif prev_subtree == LexCategory.PAREN_CLOSE:
+                    raise Exception("Internal error: closing parenthesis left unprocessed")
                 else:
-                    parent_subtree.extend(("", new_subtree))
-            subtree_stack.append(new_subtree)
-        elif lexcat == LexCategory.PAREN_CLOSE:
-            # )
-            if subtree_stack:
-                complete_subtree = subtree_stack.pop()
-
-                if not subtree_stack:
-                    yield complete_subtree
+                    if lexcat == LexCategory.PAREN_OPEN:
+                        subtree_stack.append(prev_subtree)
+                        subtree_stack.append(lexcat)
+                    elif lexcat == LexCategory.PAREN_CLOSE:
+                        # prev_subtree is closed, so just leave it popped out
+                        if not subtree_stack:
+                            # prev_subtree is a root, so yield it
+                            yield prev_subtree
+                    else:
+                        # the current node is a terminal node
+                        new_subtree = Tree(word, [])
+                        # link it to its parent (i.e. prev_subtree)
+                        prev_subtree.children.append(new_subtree) # type: ignore
+                        # push back prev_subtree
+                        subtree_stack.append(prev_subtree)
             else:
-                raise IndexError
+                if lexcat == LexCategory.PAREN_OPEN:
+                    subtree_stack.append(lexcat)
+                elif lexcat == LexCategory.PAREN_CLOSE:
+                    raise ValueError("Redundant closing parenthesis")
+                else:
+                    yield Tree(word, [])
+        if subtree_stack:
+            raise ValueError("Unclosed tree")
+
+    @classmethod
+    def parse_stream(cls, stream: TextIO) -> Iterator["Tree"]:
+        yield from cls.yield_tree_from_lexer(cls.lexer(stream))
+
+    def split_ID_from_tree(
+        self,
+        ID_parser: Optional[RecordIDParser] = None
+    ) -> Tuple[RecordID, "Tree"]:
+        """
+        Split the ID (if there is any) and the content in `tree`.
+        The ID is tagged in the way the CorpusSearch project [1]_ recommends.
+
+        Arguments
+        ---------
+        tree
+
+        ID_parser
+            A parser of IDs. A default is used when no instance is provided.
+
+        References
+        ----------
+        .. [1] https://corpussearch.sourceforge.net/CS-manual/YourCorpus.html#ID
+        """
+        ID_parser = ID_parser or RecordIDParser()
+
+        if self.is_nonterminal():
+            roots, maybe_ID = self.children[:-1], self.children[-1]
+
+            if (
+                (res := maybe_ID.inspect_preterminal())
+                and res[0] == "ID"
+            ):
+                # If ID found
+                ID_parsed = ID_parser.parse(res[1]) # type: ignore
+
+                # Reform the tree root
+                root_comment_merged = tuple(Tree.lower_comments(roots))
+                len_root_comment_merged = len(root_comment_merged)
+
+                if len_root_comment_merged == 0:
+                    return ID_parsed, Tree("")
+                elif len_root_comment_merged == 1:
+                    return ID_parsed, root_comment_merged[0]
+                else:
+                    return ID_parsed, Tree("", root_comment_merged)
+            else:
+                return SimpleRecordID(""), self
         else:
-            # string node
-            if subtree_stack:
-                subtree_stack[-1].append(node)
-            else:
-                yield node
+            return SimpleRecordID(""), self
 
-    if subtree_stack:
-        raise ValueError("Unclosed tree")
-
-def split_ID_from_tree(
-    tree: Tree, 
-    ID_parser: Optional[RecordIDParser] = None
-) -> Tuple[RecordID, Tree]:
-    """
-    Split the ID (if there is any) and the content in `tree`.
-    The ID is tagged in the way the CorpusSearch project [1]_ recommends.
-
-    Arguments
-    ---------
-    tree
-
-    ID_parser
-        A parser of IDs. A default is used when no instance is provided.
-
-    References
-    ----------
-    .. [1] https://corpussearch.sourceforge.net/CS-manual/YourCorpus.html#ID
-    """
-    ID_parser = ID_parser or RecordIDParser()
-
-    if inspect_nonterminal(tree):
-        _, roots, maybe_ID = tree[0], tree[1:-1], tree[-1]
-
-        if (
-            (res := inspect_pre_terminal(maybe_ID))
-            and res[0] == "ID"
-        ):
-            # If ID found
-            ID_parsed = ID_parser.parse(res[1])
-
-            # Reform the tree root
-            root_comment_merged = tuple(merge_comments(roots))
-            len_root_comment_merged = len(root_comment_merged)
-
-            if len_root_comment_merged == 0:
-                return ID_parsed, ""
-            elif len_root_comment_merged == 1:
-                return ID_parsed, root_comment_merged[0]
-            else:
-                return ID_parsed, ["", *root_comment_merged]
-        else:
-            return SimpleRecordID(""), tree
-    else:
-        return SimpleRecordID(""), tree
-
-def iter_leaves_with_branches(tree: Tree)-> Iterator[Tuple[Tree, ...]]:
-    if inspect_nonterminal(tree):
-        pointer_stack: List[Tuple[Tree, int, int]] = [(tree, 1, len(tree))]
+    def iter_leaves_with_branches(self)-> Iterator[Tuple]:
+        pointer_stack: List[Tuple[Tree, int]] = [(self, 0)]
         while pointer_stack:
-            current_node, idx_current_child, count_children = pointer_stack.pop()
-            if idx_current_child < count_children:
-                pointer_stack.append(
-                    (current_node, idx_current_child + 1, count_children)
+            current_node, child_pointer = pointer_stack.pop()
+
+            if current_node.is_terminal():
+                yield (
+                    *(node.label for node, _ in pointer_stack),
+                    current_node.label
                 )
-
-                current_leftmost_child = current_node[idx_current_child]
-
-                if inspect_nonterminal(current_leftmost_child):
-                    pointer_stack.append(
-                        (current_leftmost_child, 1, len(current_leftmost_child))
-                    )
-                else:
-                    yield (
-                        *(label for label, _, _ in pointer_stack),
-                        current_leftmost_child,
-                    )
+            elif child_pointer < len(current_node.children):
+                pointer_stack.append(
+                    (current_node, child_pointer + 1)
+                )
+                pointer_stack.append(
+                    (current_node.children[child_pointer], 0)
+                )
             # else:
-                # all children are consumed
-                # just discard
-    else:
-        yield (tree, )
+                # do nothing
 
-def iter_terminals(tree: Tree) -> Iterator[str]:
-    pointer_stack = [tree]
-    while pointer_stack:
-        current_node = pointer_stack.pop()
-        if isinstance(current_node, str):
-            yield current_node
-        elif (res := inspect_nonterminal(current_node)):
-            pointer_stack.extend(reversed(res[1]))
+    def iter_terminals(self) -> Iterator:
+        pointer_stack = [self]
+        while pointer_stack:
+            current_node = pointer_stack.pop()
+            if isinstance(current_node, str):
+                yield current_node.label
+            elif current_node.is_nonterminal():
+                pointer_stack.extend(reversed(current_node.children))
 
-def replace_terminals(tree: Tree, terminals: Iterator[str]) -> Tree:
-    """
-    Note
-    ----
-    Non-destructive.
-    """
-    if isinstance(tree, str):
-        return next(terminals)
-    elif (res := inspect_nonterminal(tree)):
-        new_children = [
-            replace_terminals(child, terminals)
-            for child in res[1]
-        ]
-        return [res[0], *new_children]
-    else:
-        return tree
+    def replace_terminals(self, terminals: Iterator) -> "Tree":
+        """
+        Note
+        ----
+        Non-destructive.
+        """
+        if self.is_terminal():
+            return Tree(next(terminals))
+        else:
+            new_children = tuple(
+                child.replace_terminals(terminals)
+                for child in self.children
+            )
+            return Tree(self.label, new_children)
 
+    def merge_unary_nodes(
+        self, 
+        concat: Callable[[X, X], X] = lambda x, y: f"{x}☆{y}", # type: ignore
+    ) -> "Tree":
+        if self.is_terminal():
+            return self
+        elif (res := self.inspect_unary()):
+            label, only_child = res
+            label = concat(label, only_child.label)
+            return Tree(label, only_child.children).merge_unary_nodes(concat)
+        else:
+            return Tree(
+                self.label,
+                tuple(child.merge_unary_nodes(concat) for child in self.children)
+            )
+
+    def unfold_unary_nodes(
+        self,
+        splitter: Callable[[X], List[X]] = lambda x: x.split("☆"), # type: ignore
+    ) -> "Tree":
+        if self.is_terminal():
+            return self
+        else:
+            label_split = splitter(self.label)
+
+            latest_label = label_split.pop()
+            result_tree = Tree(latest_label, self.children)
+
+            while label_split:
+                latest_label = label_split.pop()
+                result_tree =  Tree(latest_label, (result_tree, ))
+
+            return result_tree
 
 class GRVCell(NamedTuple):
     """
     Represents a cell of an encoded tree.
-    Used for :func:`encode_GRV` and :func:`decode_GRV`
     """
-    form: str
-    lex_cat: str
+    form: Any
+    lex_cat: Any
     height_diff: int
-    phrase_cat: str
+    phrase_cat: Any
 
-def encode_GRV(tree: Tree) -> Iterator[GRVCell]:
-    """
-    Encode `tree` in the way described by [1]_. 
-    Relative scale is adopted.
+    @classmethod
+    def encode(cls, tree: Tree) -> Iterator["GRVCell"]:
+        """
+        Encode `tree` in the way described by [1]_. 
+        Relative scale is adopted.
 
-    Notes
-    -----
-    There must be no unary nodes (except for lexical nodes).
-    If any, they must be collapsed beforehand.
+        Notes
+        -----
+        There must be no unary nodes (except for lexical nodes).
+        If any, they must be collapsed beforehand.
 
-    References
-    ----------
-    .. [1] Gómez-Rodríguez, C., & Vilares, D. (2018). Constituent Parsing as Sequence Labeling. In: Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 1314–1324. https://doi.org/10.18653/v1/D18-1162
-    """
-    iter_leaves: Iterator[tuple[str, ...]] = (
-        tuple(get_label(node) for node in branch)
-        for branch in iter_leaves_with_branches(tree)
-    )
-    prev_height: int = 0
+        References
+        ----------
+        .. [1] Gómez-Rodríguez, C., & Vilares, D. (2018). Constituent Parsing as Sequence Labeling. In: Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 1314–1324. https://doi.org/10.18653/v1/D18-1162
+        """
+        iter_leaves: Iterator[tuple] = (
+            tuple(branch)
+            for branch in tree.iter_leaves_with_branches()
+        )
+        prev_height: int = 0
 
-    if (current_leaf := next(iter_leaves, None)):
-        for next_leaf in iter_leaves:
-            match_idx = next(
-                (
-                    count_common_ancestors
-                    for count_common_ancestors, (current_node, next_node)
-                    in enumerate(zip(current_leaf[:-2], next_leaf[:-2]))
-                    if current_node != next_node
-                ),
-                len(current_leaf) - 2
-            )
+        if (current_leaf := next(iter_leaves, None)):
+            for next_leaf in iter_leaves:
+                match_idx = next(
+                    (
+                        count_common_ancestors
+                        for count_common_ancestors, (current_node, next_node)
+                        in enumerate(zip(current_leaf[:-2], next_leaf[:-2]))
+                        if current_node != next_node
+                    ),
+                    len(current_leaf) - 2
+                )
 
-            yield GRVCell(
+                yield cls(
+                    current_leaf[-1], current_leaf[-2],
+                    (match_idx - prev_height),
+                    current_leaf[match_idx - 1]
+                )
+                prev_height = match_idx
+
+                current_leaf = next_leaf
+
+            yield cls(
                 current_leaf[-1], current_leaf[-2],
-                (match_idx - prev_height),
-                current_leaf[match_idx - 1]
+                0, "",
             )
-            prev_height = match_idx
 
-            current_leaf = next_leaf
+    @classmethod
+    def decode(cls, cells: Iterator["GRVCell"]) -> Tree:
+        """
+        Decode a tree encoded in the way described by [1]_. 
+        Relative scale is assumed.
 
-        yield GRVCell(
-            current_leaf[-1], current_leaf[-2],
-            0, "",
-        )
+        Notes
+        -----
+        Collapsed unary nodes is to be expanded manually after the decoding.
 
-def decode_GRV(cells: Iterator[GRVCell]):
-    """
-    Decode a tree encoded in the way described by [1]_. 
-    Relative scale is assumed.
-
-    Notes
-    -----
-    Collapsed unary nodes is to be expanded manually after the decoding.
-
-    References
-    ----------
-    .. [1] Gómez-Rodríguez, C., & Vilares, D. (2018). Constituent Parsing as Sequence Labeling. In: Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 1314–1324. https://doi.org/10.18653/v1/D18-1162
-    """
-    # Initial cell
-    initial_cell = next(cells)
-    new_node: Tree = ["" ]
-    tree_pointer: list[Tree] = [new_node]
-    for _ in range(initial_cell.height_diff - 1):
-        child: Tree = ["" ]
-        tree_pointer[-1].append(child) # type: ignore
-        tree_pointer.append(child)
-    
-    tree_pointer[-1][0] = initial_cell.phrase_cat # type: ignore
-    lex_node: Tree = [initial_cell.lex_cat, initial_cell.form]
-    tree_pointer[-1].append(lex_node) # type: ignore
-    
-    for cell in cells:
-        if cell.height_diff > 0:
-            # grow edges
-            for _ in range(cell.height_diff):
-                child = ["" ]
-                tree_pointer[-1].append(child) # type: ignore
-                tree_pointer.append(child)
-
-            tree_pointer[-1][0] = cell.phrase_cat # type: ignore
-            tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
-        elif cell.height_diff == 0:
-            # adjoint form to the pointer
-            # (the relevant node on the last branch)
-            tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
-        else:
-            # adjoint form to the pointer
-            # (the relevant node on the last branch)
-            tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
-
-            # move back the pointer
-            tree_pointer = tree_pointer[:cell.height_diff]
-
-            tree_pointer[-1][0] = cell.phrase_cat # type: ignore
-
-    return tree_pointer[0]
-
-def merge_unary_nodes(tree: Tree, comma: str = "☆", topmost: bool = True) -> Tuple[Tree, str]:
-    if isinstance(tree, str):
-        return tree, ""
-    elif (res := inspect_unary(tree)):
-        # unary
-        only_child = res[1]
-        child_res, child_labels = merge_unary_nodes(only_child, comma, topmost = False)
-        new_label = f"{res[0]}{comma}{child_labels}" if child_labels else res[0]
-        if topmost:
-            return [new_label, child_res], ""
-        else:
-            return child_res, new_label
-    elif (res := inspect_nonterminal(tree)):
-        children_res = (
-            merge_unary_nodes(child, comma, topmost = True)[0]
-            for child in res[1]
-        )
-        return [res[0], *children_res], ""
-    else:
-        return tree, ""
-
-def unfold_unary_nodes(tree: Tree, comma: str = "☆") -> Tree:
-    if isinstance(tree, str):
-        return tree
-    elif (res := inspect_nonterminal(tree)):
-        label, children = res
-        label_split = label.split(comma)
+        References
+        ----------
+        .. [1] Gómez-Rodríguez, C., & Vilares, D. (2018). Constituent Parsing as Sequence Labeling. In: Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 1314–1324. https://doi.org/10.18653/v1/D18-1162
+        """
+        # Initial cell
+        initial_cell = next(cells)
+        new_node: Tree = Tree("")
+        tree_pointer: list[Tree] = [new_node]
+        for _ in range(initial_cell.height_diff - 1):
+            child: Tree = Tree("")
+            tree_pointer[-1].append(child) # type: ignore
+            tree_pointer.append(child)
         
-        latest_label = label_split.pop()
-        result_tree = [latest_label, *children]
+        tree_pointer[-1][0] = initial_cell.phrase_cat # type: ignore
+        lex_node: Tree = Tree(initial_cell.lex_cat, (initial_cell.form, ))
+        tree_pointer[-1].append(lex_node) # type: ignore
+        
+        for cell in cells:
+            if cell.height_diff > 0:
+                # grow edges
+                for _ in range(cell.height_diff):
+                    child = Tree("")
+                    tree_pointer[-1].append(child) # type: ignore
+                    tree_pointer.append(child)
 
-        while label_split:
-            latest_label = label_split.pop()
-            result_tree = [latest_label, result_tree]
+                tree_pointer[-1][0] = cell.phrase_cat # type: ignore
+                tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
+            elif cell.height_diff == 0:
+                # adjoint form to the pointer
+                # (the relevant node on the last branch)
+                tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
+            else:
+                # adjoint form to the pointer
+                # (the relevant node on the last branch)
+                tree_pointer[-1].append([cell.lex_cat, cell.form]) # type: ignore
 
-        return result_tree
-    else:
-        return tree
+                # move back the pointer
+                tree_pointer = tree_pointer[:cell.height_diff]
+
+                tree_pointer[-1][0] = cell.phrase_cat # type: ignore
+
+        return tree_pointer[0]
