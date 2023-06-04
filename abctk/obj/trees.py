@@ -466,7 +466,8 @@ class GRVCell(NamedTuple):
 
         Notes
         -----
-        Collapsed unary nodes is to be expanded manually after the decoding.
+        * Collapsed unary nodes is to be expanded manually after the decoding.
+        * The `height_diff` of the first cell represents the absolute startline of branching. The counting of the height begins from `1`.
 
         References
         ----------
@@ -474,55 +475,87 @@ class GRVCell(NamedTuple):
         """
         # Initial cell
         initial_cell = next(cells)
-        new_node: Tree = Tree("", [])
-        tree_pointer: list[Tree] = [new_node]
-        for _ in range(initial_cell.height_diff - 1):
-            child: Tree = Tree("", [])
-            tree_pointer[-1].children.append(child) # type: ignore
-            tree_pointer.append(child)
+        tree_pointer: list[Tree] = []
 
-        tree_pointer[-1] = Tree(
-            initial_cell.phrase_cat, # type: ignore
-            [
-                *tree_pointer[-1].children,
-                Tree(
-                    initial_cell.lex_cat, 
-                    [Tree(initial_cell.form, []), ]
-                ),
-            ]
-        )
+        if initial_cell.height_diff < 2:
+            tree_pointer.append(
+                Tree.make_unary_chain(
+                    initial_cell.phrase_cat,
+                    initial_cell.lex_cat,
+                    initial_cell.form,
+                    seq_maker = list,
+                )
+            )
+        else:
+            # (height_diff - 1) branches will be grown from now on.
+            # The strategy is that we first grow (height_diff - 2) empty branches by loop, ...
+            new_node: Tree = Tree("", [])
+            tree_pointer: list[Tree] = [new_node]
+            for _ in range(initial_cell.height_diff - 2):
+                child: Tree = Tree("", [])
+                tree_pointer[-1].children.append(child) # type: ignore
+                tree_pointer.append(child)
+
+            # ... and separately create the latest branch according to the cell.
+            terminal_subtree = Tree.make_unary_chain(
+                initial_cell.phrase_cat,
+                initial_cell.lex_cat,
+                initial_cell.form,
+                seq_maker = list
+            )
+            tree_pointer[-1].children.append(terminal_subtree) # type: ignore
+            tree_pointer.append(terminal_subtree)
 
         for cell in cells:
             if cell.height_diff > 0:
-                # grow edges
-                for _ in range(cell.height_diff):
+                # Grow (height_diff) branches from the current pointer
+                # Firstly, grow (height_diff - 1) empty branches
+                for _ in range(cell.height_diff - 1):
                     child = Tree("", [])
                     tree_pointer[-1].children.append(child) # type: ignore
                     tree_pointer.append(child)
 
-                tree_pointer[-1] = Tree(
-                    cell.phrase_cat, 
-                    [
-                        *tree_pointer[-1].children,
-                        Tree( cell.lex_cat, [Tree(cell.form, [])] )
-                    ]
+                # Then create a subtree according to the cell.
+                terminal_subtree = Tree.make_unary_chain(
+                    cell.phrase_cat,
+                    cell.lex_cat,
+                    cell.form,
+                    seq_maker = list
                 )
+                # Lastly, adjoin it to the current position
+                tree_pointer[-1].children.append(terminal_subtree) # type: ignore
+                tree_pointer.append(terminal_subtree)
             elif cell.height_diff == 0:
                 # adjoint form to the pointer
                 # (the relevant node on the last branch)
-                tree_pointer[-1].children.append(
-                    Tree( cell.lex_cat, [Tree(cell.form, [])] )
-                ) # type: ignore
+                tree_pointer[-1].children.append( # type: ignore
+                    Tree.make_unary_chain(
+                        cell.lex_cat,
+                        cell.form,
+                        seq_maker = list
+                    )
+                )
+                # no need to move the pointer
             else:
                 # adjoint form to the pointer
                 # (the relevant node on the last branch)
-                tree_pointer[-1].children.append(
-                    Tree( cell.lex_cat, [Tree(cell.form, [])] )
+                tree_pointer[-1].children.append( # type: ignore
+                    Tree.make_unary_chain(
+                        cell.lex_cat,
+                        cell.form,
+                        seq_maker = list
+                    )
                 ) # type: ignore
 
                 # move back the pointer
                 tree_pointer = tree_pointer[:cell.height_diff]
 
-                tree_pointer[-1] = Tree( cell.phrase_cat, tree_pointer[-1].children ) # type: ignore
+                # fill the category by recreating the tree
+                latest_common_node = tree_pointer.pop()
+                new_common_node = latest_common_node.change_label(cell.phrase_cat)
+
+                if tree_pointer:
+                    tree_pointer[-1].children[-1] = new_common_node # type: ignore
+                tree_pointer.append(new_common_node)
 
         return tree_pointer[0]
