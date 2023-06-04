@@ -439,13 +439,15 @@ class GRVCell(NamedTuple):
                         in enumerate(zip(current_leaf[:-2], next_leaf[:-2]))
                         if current_node != next_node
                     ),
-                    len(current_leaf) - 2
+                    # default value
+                    min(len(current_leaf), len(next_leaf)) - 2
                 )
 
                 yield cls(
-                    current_leaf[-1], current_leaf[-2],
-                    (match_idx - prev_height),
-                    current_leaf[match_idx - 1]
+                    form = current_leaf[-1],
+                    lex_cat = current_leaf[-2],
+                    height_diff = (match_idx - prev_height),
+                    phrase_cat = current_leaf[match_idx - 1]
                 )
                 prev_height = match_idx
 
