@@ -148,13 +148,61 @@ class TestGRVCell:
                 GRVCell("ござい", "VB2", 0, "IP-MAT"),
                 GRVCell("ます", "AX", 0, ""),
             )
+        ),
+        (
+            # 54_aozora_Kajii-1925;JP
+            """
+(IP-MAT (NP-SBJ *speaker*)
+        (PP (IP-ADV (PP (NP (PRO そこ))
+                        (P は))
+                    (NP-SBJ *)
+                    (ADVP (ADV 決して))
+                    (NP-PRD (IP-REL (NP-SBJ *T*)
+                                    (ADJN 立派)
+                                    (AX な))
+                            (N 店))
+                    (AX で)
+                    (P は)
+                    (NEG なかっ)
+                    (AXD た)
+                    (FN の)
+                    (AX だ))
+            (P が))
+        (CONJ *)
+        (PU 、)
+        (PP (NP (PP (NP (N 果物屋)
+                        (N 固有))
+                    (P の))
+                (N 美しさ))
+            (P が))
+        (NP-OB1 *が*)
+        (ADVP (ADV 最も)
+            (ADJN 露骨)
+            (AX に))
+        (VB 感ぜ)
+        (VB2 られ)
+        (AXD た)
+        (PU 。))
+            """,
+            (GRVCell(form='*speaker*', lex_cat='NP-SBJ', height_diff=1, phrase_cat='IP-MAT'), GRVCell(form='そこ', lex_cat='NP☆PRO', height_diff=3, phrase_cat='PP'), GRVCell(form='は', lex_cat='P', height_diff=-1, phrase_cat='IP-ADV'), GRVCell(form='*', lex_cat='NP-SBJ', height_diff=0, phrase_cat='IP-ADV'), GRVCell(form='決して', lex_cat='ADVP☆ADV', height_diff=0, phrase_cat='IP-ADV'), GRVCell(form='*T*', lex_cat='NP-SBJ', height_diff=2, phrase_cat='IP-REL'), GRVCell(form='立派', lex_cat='ADJN', height_diff=0, phrase_cat='IP-REL'), GRVCell(form='な', lex_cat='AX', height_diff=-1, phrase_cat='NP-PRD'), GRVCell(form='店', lex_cat='N', height_diff=-1, phrase_cat='IP-ADV'), GRVCell(form='で', lex_cat='AX', height_diff=0, phrase_cat='IP-ADV'), GRVCell(form='は', lex_cat='P', height_diff=0, phrase_cat='IP-ADV'), GRVCell(form='なかっ', lex_cat='NEG', height_diff=0, phrase_cat='IP-ADV'), GRVCell(form='た', lex_cat='AXD', height_diff=0, phrase_cat='IP-ADV'), GRVCell(form='の', lex_cat='FN', height_diff=0, phrase_cat='IP-ADV'), GRVCell(form='だ', lex_cat='AX', height_diff=-1, phrase_cat='PP'), GRVCell(form='が', lex_cat='P', height_diff=-1, phrase_cat='IP-MAT'), GRVCell(form='*', lex_cat='CONJ', height_diff=0, phrase_cat='IP-MAT'), GRVCell(form='、', lex_cat='PU', height_diff=0, phrase_cat='IP-MAT'), GRVCell(form='果物屋', lex_cat='N', height_diff=4, phrase_cat='NP'), GRVCell(form='固有', lex_cat='N', height_diff=-1, phrase_cat='PP'), GRVCell(form='の', lex_cat='P', height_diff=-1, phrase_cat='NP'), GRVCell(form='美しさ', lex_cat='N', height_diff=-1, phrase_cat='PP'), GRVCell(form='が', lex_cat='P', height_diff=-1, phrase_cat='IP-MAT'), GRVCell(form='*が*', lex_cat='NP-OB1', height_diff=0, phrase_cat='IP-MAT'), GRVCell(form='最も', lex_cat='ADV', height_diff=1, phrase_cat='ADVP'), GRVCell(form='露骨', lex_cat='ADJN', height_diff=0, phrase_cat='ADVP'), GRVCell(form='に', lex_cat='AX', height_diff=-1, phrase_cat='IP-MAT'), GRVCell(form='感ぜ', lex_cat='VB', height_diff=0, phrase_cat='IP-MAT'), GRVCell(form='られ', lex_cat='VB2', height_diff=0, phrase_cat='IP-MAT'), GRVCell(form='た', lex_cat='AXD', height_diff=0, phrase_cat='IP-MAT'), GRVCell(form='。', lex_cat='PU', height_diff=0, phrase_cat=''))
         )
     )
 
     @pytest.mark.parametrize("tree_raw, result", RAW_TREES_WITH_GDV)
     def test_encode_GRV(self, tree_raw: str, result):
-        tree_parsed = next(Tree.parse_stream(io.StringIO(tree_raw))).solidify()
+        tree_parsed = next(
+            Tree.parse_stream(io.StringIO(tree_raw))
+        ).merge_unary_nodes().solidify()
         tree_encoded = tuple(GRVCell.encode(tree_parsed))
 
-        print(tree_encoded)
         assert tree_encoded == result
+
+    @pytest.mark.parametrize("tree_raw, cells", RAW_TREES_WITH_GDV)
+    def test_decode_GRV(self, tree_raw: str, cells):
+        tree_decoded = GRVCell.decode(iter(cells)).solidify()
+        tree_raw_parsed = next(Tree.parse_stream(io.StringIO(tree_raw))).solidify().merge_unary_nodes()
+
+        print(f"DECODED: {tree_decoded}")
+        print(f"SHOULD BE: {tree_raw_parsed}")
+
+        assert tree_decoded == tree_raw_parsed
