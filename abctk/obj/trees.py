@@ -30,6 +30,32 @@ class Tree(NamedTuple):
         self.print_stream(buffer)
         return buffer.getvalue()
 
+    @classmethod
+    def make_unary_chain(
+        cls, 
+        *nodes: str, 
+        seq_maker: Callable = tuple
+    ) -> "Tree":
+        if not nodes:
+            return cls("", seq_maker())
+        elif len(nodes) == 1:
+            return cls(nodes[0], seq_maker())
+        else:
+            return cls(
+                nodes[0],
+                seq_maker(
+                    (cls.make_unary_chain(*nodes[1:], seq_maker = seq_maker) ,) 
+                )
+            )
+
+    def change_label(self, new_label: str) -> "Tree":
+        """
+        Notes
+        -----
+        Non-destructive.
+        """
+        return self.__class__(new_label, self.children)
+
     def solidify(self) -> "Tree":
         """
         Noramlize by replacing all of the child containers with :class:`tuple`s.
