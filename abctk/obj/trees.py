@@ -92,7 +92,7 @@ class Tree(NamedTuple):
         else:
             return None
 
-    def inspect_preterminal(self) -> Optional[tuple[X, X]]:
+    def inspect_preterminal(self) -> Optional[Tuple[X, X]]:
         "Find if the tree is a pre-terminal subtree. A pre-terminal subtree means a subtree with a unary terminal node."
         if (res := self.inspect_unary()) and res[1].is_terminal():
             return res[0], res[1].label
@@ -163,7 +163,7 @@ class Tree(NamedTuple):
         yield from comment_trees
 
     @staticmethod
-    def lexer(stream: TextIO) -> Iterator[tuple[LexCategory, str]]:
+    def lexer(stream: TextIO) -> Iterator[Tuple[LexCategory, str]]:
         """
         Tokenize trees in the S-expression format to facilitate parsing of them.
 
@@ -206,7 +206,7 @@ class Tree(NamedTuple):
             buffer.clear()
 
     @classmethod
-    def yield_tree_from_lexer(cls, forms: Iterator[tuple[LexCategory, str]]) -> Iterator["Tree"]:
+    def yield_tree_from_lexer(cls, forms: Iterator[Tuple[LexCategory, str]]) -> Iterator["Tree"]:
         """
         Parse trees in the S-expression format.
         Data should be tokenized with :func:`lexer` beforehand.
