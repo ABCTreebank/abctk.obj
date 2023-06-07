@@ -392,7 +392,7 @@ class Tree(NamedTuple):
             label_split = splitter(self.label)
 
             latest_label = label_split.pop()
-            result_tree = Tree(latest_label, self.children)
+            result_tree = Tree(latest_label, tuple(ch.unfold_unary_nodes(splitter) for ch in self.children))
 
             while label_split:
                 latest_label = label_split.pop()
