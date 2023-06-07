@@ -125,6 +125,32 @@ class TestTree:
 
         assert "".join(tree_parased.iter_terminals()) == spellout
 
+    TREES_WITH_UNARIES = (
+        (
+            "(CONJ (NP-TMP (PP で)) (CONJ-PART-SUBWORD は))",
+            "(CONJ (NP-TMP☆PP で) (CONJ-PART-SUBWORD は))"
+        ),
+        (
+            "(CONJ (NP-TMP (PP (X で))) (CONJ-PART-SUBWORD は))",
+            "(CONJ (NP-TMP☆PP☆X で) (CONJ-PART-SUBWORD は))"
+        ),
+    )
+    @pytest.mark.parametrize("tree_unfold, tree_fold", TREES_WITH_UNARIES)
+    def test_merge_unary_nodes(self, tree_unfold, tree_fold):
+        tree_unfold_parse = next(Tree.parse_stream(io.StringIO(tree_unfold)))
+        tree_fold_parse = next(Tree.parse_stream(io.StringIO(tree_fold)))
+
+        assert tree_unfold_parse.merge_unary_nodes().solidify() == tree_fold_parse.solidify()
+
+    @pytest.mark.parametrize("tree_unfold, tree_fold", TREES_WITH_UNARIES)
+    def test_unfold_unary_nodes(self, tree_unfold, tree_fold):
+        tree_unfold_parse = next(Tree.parse_stream(io.StringIO(tree_unfold)))
+        tree_fold_parse = next(Tree.parse_stream(io.StringIO(tree_fold)))
+
+        tree_fold_unfolded = tree_fold_parse.unfold_unary_nodes()
+
+        assert tree_unfold_parse.solidify() == tree_fold_unfolded.solidify()
+
 class TestGRVCell:
     RAW_TREES_WITH_GDV = (
         (
