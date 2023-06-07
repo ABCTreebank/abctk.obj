@@ -464,6 +464,12 @@ class GRVCell(NamedTuple):
         Decode a tree encoded in the way described by [1]_. 
         Relative scale is assumed.
 
+        Arguments
+        ---------
+        cells : list of :class:`GRVCell`
+
+        relativize_init_height : bool, default True
+
         Notes
         -----
         * Collapsed unary nodes is to be expanded manually after the decoding.
@@ -477,7 +483,20 @@ class GRVCell(NamedTuple):
         initial_cell = cells[0]
         tree_pointer: list[Tree] = []
 
-        if initial_cell.height_diff < 2:
+        # Adjust the height
+        initial_height: int = initial_cell.height_diff
+        if relativize_init_height:
+            min_abs_height = min(
+                itertools.accumulate(
+                    (c.height_diff for c in cells[1:]),
+                    lambda x, y: x + y,
+                    initial = initial_height
+                )
+            )
+            initial_height += 1 - min_abs_height
+
+
+        if initial_height < 2:
             tree_pointer.append(
                 Tree.make_unary_chain(
                     initial_cell.phrase_cat,
@@ -487,11 +506,11 @@ class GRVCell(NamedTuple):
                 )
             )
         else:
-            # (height_diff - 1) branches will be grown from now on.
-            # The strategy is that we first grow (height_diff - 2) empty branches by loop, ...
+            # (initial_height - 1) branches will be grown from now on.
+            # The strategy is that we first grow (initial_height - 2) empty branches by loop, ...
             new_node: Tree = Tree("", [])
             tree_pointer: list[Tree] = [new_node]
-            for _ in range(initial_cell.height_diff - 2):
+            for _ in range(initial_height - 2):
                 child: Tree = Tree("", [])
                 tree_pointer[-1].children.append(child) # type: ignore
                 tree_pointer.append(child)
