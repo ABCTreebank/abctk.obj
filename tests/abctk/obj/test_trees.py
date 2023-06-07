@@ -199,7 +199,7 @@ class TestGRVCell:
 
     @pytest.mark.parametrize("tree_raw, cells", RAW_TREES_WITH_GDV)
     def test_decode_GRV(self, tree_raw: str, cells):
-        tree_decoded = GRVCell.decode(iter(cells)).solidify()
+        tree_decoded = GRVCell.decode(cells).solidify()
         tree_raw_parsed = next(Tree.parse_stream(io.StringIO(tree_raw))).solidify().merge_unary_nodes()
 
         print(f"DECODED: {tree_decoded}")

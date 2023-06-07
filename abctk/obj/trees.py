@@ -459,7 +459,7 @@ class GRVCell(NamedTuple):
             )
 
     @classmethod
-    def decode(cls, cells: Iterator["GRVCell"]) -> Tree:
+    def decode(cls, cells: Sequence["GRVCell"], relativize_init_height: bool = True) -> Tree:
         """
         Decode a tree encoded in the way described by [1]_. 
         Relative scale is assumed.
@@ -474,7 +474,7 @@ class GRVCell(NamedTuple):
         .. [1] Gómez-Rodríguez, C., & Vilares, D. (2018). Constituent Parsing as Sequence Labeling. In: Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 1314–1324. https://doi.org/10.18653/v1/D18-1162
         """
         # Initial cell
-        initial_cell = next(cells)
+        initial_cell = cells[0]
         tree_pointer: list[Tree] = []
 
         if initial_cell.height_diff < 2:
@@ -506,7 +506,7 @@ class GRVCell(NamedTuple):
             tree_pointer[-1].children.append(terminal_subtree) # type: ignore
             tree_pointer.append(terminal_subtree)
 
-        for cell in cells:
+        for cell in cells[1:]:
             if cell.height_diff > 0:
                 # Grow (height_diff) branches from the current pointer
                 # Firstly, grow (height_diff - 1) empty branches
