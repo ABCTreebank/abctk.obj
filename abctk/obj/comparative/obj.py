@@ -156,7 +156,7 @@ class CompRecord:
     def to_brackets(self) -> str:
         return self.linearize_annotations(self.tokens, self.comp)
     
-    def to_brackets_full(self) -> str:
+    def to_brackets_with_ID(self) -> str:
         comments_printed = "\n".join(self.comments)
         return f"{self.ID} {self.to_brackets()}\n{comments_printed}"
     
