@@ -1,5 +1,5 @@
 from collections import defaultdict, deque
-from typing import Iterable, TextIO, Optional, Sequence, NamedTuple, List, Match
+from typing import ClassVar, Iterable, TextIO, Optional, Sequence, NamedTuple, List, Match
 import dataclasses
 from dataclasses import dataclass
 import re
@@ -113,7 +113,39 @@ class CompRecord:
     """
     The previous ID.
     """
+
+    yaml_tag: ClassVar[str] = "!CompRecord"
     
+    @classmethod
+    def to_yaml(cls, representer, node):
+        # https://stackoverflow.com/a/66477701
+        from ruamel.yaml.comments import CommentedSeq, CommentedMap
+
+        mp = dataclasses.asdict(node)
+
+        seq_tokens = CommentedSeq(mp["tokens"])
+        seq_tokens.fa.set_flow_style()
+        mp["tokens"] = seq_tokens
+
+        def _wrap_comp_span(d: dict):
+            res = CommentedMap(**d)
+            res.fa.set_flow_style()
+            return res
+        
+        mp["comp"] = CommentedSeq(
+            _wrap_comp_span(span)
+            for span in mp["comp"]
+        )
+
+        return representer.represent_mapping(
+            tag = cls.yaml_tag,
+            mapping = mp,
+        )
+
+    @classmethod
+    def from_yaml(cls, constructor, node):
+        return cls(**node)
+
     @classmethod
     def linearize_annotations(
         cls,
