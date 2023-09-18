@@ -13,7 +13,9 @@ class LexCategory(IntEnum):
     NODE = 127
 
 _RE_WHITESPACE = re.compile(r"\s+")
-
+_RE_PARTIALIZATION = re.compile(
+    r"^(?P<cat>[^\-]+)-PART(-SUBWORD)?(-SPLIT)?$"
+)
 class Tree(NamedTuple):
     "A named tuple representing a tree."
     label: Any
@@ -399,6 +401,53 @@ class Tree(NamedTuple):
                 result_tree =  Tree(latest_label, (result_tree, ))
 
             return result_tree
+        
+    def merge_partialized_lex_nodes(self) -> "Tree":
+        """
+        Revert `Keyaki_GRV.split_lexical_nodes`.
+
+        Notes
+        -----
+        * Non-destructive.
+        * Labels are supposed to be `str`.
+        """
+
+        def _match_cat(parent_cat: str, child_cat: str):
+            return (
+                (match := _RE_PARTIALIZATION.match(child_cat))
+                and match.group("cat") == parent_cat
+            )
+
+        if self.is_terminal() or self.inspect_preterminal():
+            return self
+        elif all(
+            child.inspect_preterminal()
+            and (match := _RE_PARTIALIZATION.match(child.label))
+            and match.group("cat") == self.label
+            for child in self.children
+        ):
+            print(
+                "".join(
+                            child.children[0].label
+                            for child in self.children
+                        )
+            )
+            return Tree(
+                self.label,
+                (
+                    Tree(
+                        "".join(
+                            child.children[0].label
+                            for child in self.children
+                        )
+                    ),
+                )
+            )
+        else:
+            return Tree(
+                self.label,
+                tuple(child.merge_partialized_lex_nodes() for child in self.children)
+            )
 
 class GRVCell(NamedTuple):
     """
