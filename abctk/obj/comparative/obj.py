@@ -46,7 +46,8 @@ def _mod_token(
             token = f"{token}]{label}"
     return token
 
-_RE_COMMENT = re.compile(r"^//\s*(?P<comment>.*)")
+_RE_COMMENT = re.compile(r"^#\s*(?P<comment>.*)")
+_RE_ID_V1 = re.compile(r"^ID_v1:\s*(?P<idv1>.*)")
 _RE_TOKEN_BR_CLOSE = re.compile(r"^(?P<token>[^\]]+)\](?P<feat>[a-z0-9]+)(?P<rem>.*)$")
 
 @dataclass
@@ -286,32 +287,44 @@ class CompRecord:
         """
         Parse a text stream of bracketed comparative annotations.
         """
-
         comment_reservoir: List[str] = []
+        ID_v1_reservoir: Optional[str] = None
         record_reservoir: Optional[cls] = None
 
         for line in map(str.strip, stream):
+            match_ID_v1: Match[str] | None = _RE_ID_V1.match(line)
             match_comment: Match[str] | None = _RE_COMMENT.match(line)
 
             if not line:
                 continue
+            elif match_ID_v1:
+                ID_v1_reservoir = match_ID_v1.group("idv1")
             elif match_comment:
                 comment_reservoir.append(match_comment.group("comment"))
             else:
                 # generate the previous record
                 if record_reservoir:
                     if comment_reservoir:
-                        record_reservoir.comments = [com for com in comment_reservoir]
+                        record_reservoir.comments = list(comment_reservoir)
                         comment_reservoir.clear()
 
-                    yield record_reservoir
-                
-                record_reservoir = cls.from_brackets_with_ID(line)
+                        record_reservoir.ID_v1 = ID_v1_reservoir
+                        ID_v1_reservoir = None
 
+                    yield record_reservoir
+
+                record_reservoir = cls.from_brackets_with_ID(
+                    line,
+                )
+
+        # generate the last record
         if record_reservoir:
             if comment_reservoir:
-                record_reservoir.comments = [com for com in comment_reservoir]
+                record_reservoir.comments = list(comment_reservoir)
                 comment_reservoir.clear()
+
+                record_reservoir.ID_v1 = ID_v1_reservoir
+                ID_v1_reservoir = None
 
             yield record_reservoir
 
