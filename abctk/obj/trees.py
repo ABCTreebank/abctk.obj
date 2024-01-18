@@ -426,12 +426,12 @@ class Tree(NamedTuple):
             and match.group("cat") == self.label
             for child in self.children
         ):
-            print(
-                "".join(
-                            child.children[0].label
-                            for child in self.children
-                        )
-            )
+            # print(
+            #     "".join(
+            #                 child.children[0].label
+            #                 for child in self.children
+            #             )
+            # )
             return Tree(
                 self.label,
                 (
