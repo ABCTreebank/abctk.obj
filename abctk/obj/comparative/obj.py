@@ -190,7 +190,7 @@ class CompRecord:
         """
         Deprecated. Use `get_annotations_as_bracket` instead.
         """
-        return self.get_annotations_as_bracket(self.tokens, self.comp)
+        return self.get_annotations_as_bracket()
     
     def to_brackets_with_ID(self) -> str:
         """
