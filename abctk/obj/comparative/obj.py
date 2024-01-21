@@ -1,5 +1,5 @@
 from collections import defaultdict, deque
-from typing import ClassVar, Iterable, TextIO, Optional, Sequence, NamedTuple, List, Match
+from typing import ClassVar, Iterable, TextIO, Optional, Sequence, NamedTuple, List, Match, Iterator
 import dataclasses
 from dataclasses import dataclass
 import re
@@ -187,11 +187,21 @@ class CompRecord:
         )
 
     def to_brackets(self) -> str:
-        return self.linearize_annotations(self.tokens, self.comp)
+        """
+        Deprecated. Use `get_annotations_as_bracket` instead.
+        """
+        return self.get_annotations_as_bracket(self.tokens, self.comp)
     
     def to_brackets_with_ID(self) -> str:
+        """
+        Deprecated. Use `dump_as_txt_bracket` instead.
+        """
         comments_printed = "\n".join(self.comments)
         return f"{self.ID} {self.to_brackets()}\n{comments_printed}"
+
+    def get_annotations_as_bracket(self):
+        return self.linearize_annotations(self.tokens, self.comp)
+
     def dump_as_txt_bracket(
         self, stream: TextIO,
         show_comments: bool = True,
@@ -305,7 +315,7 @@ class CompRecord:
         )
     
     @classmethod
-    def read_bracket_annotation_file(cls, stream: TextIO):
+    def read_from_txt_bracket(cls, stream: TextIO) -> Iterator["CompRecord"]:
         """
         Parse a text stream of bracketed comparative annotations.
         """
@@ -349,6 +359,15 @@ class CompRecord:
             ID_v1_reservoir = None
 
             yield record_reservoir
+
+    @classmethod
+    def read_bracket_annotation_file(cls, stream: TextIO):
+        """
+        Parse a text stream of bracketed comparative annotations.
+        
+        Deprecated. Use `read_from_txt_bracket` instead.
+        """
+        return cls.read_from_txt_bracket(stream)
 
     @classmethod
     def chomp(
