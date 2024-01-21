@@ -308,8 +308,8 @@ class CompRecord:
                         record_reservoir.comments = list(comment_reservoir)
                         comment_reservoir.clear()
 
-                        record_reservoir.ID_v1 = ID_v1_reservoir
-                        ID_v1_reservoir = None
+                    record_reservoir.ID_v1 = ID_v1_reservoir
+                    ID_v1_reservoir = None
 
                     yield record_reservoir
 
@@ -323,8 +323,8 @@ class CompRecord:
                 record_reservoir.comments = list(comment_reservoir)
                 comment_reservoir.clear()
 
-                record_reservoir.ID_v1 = ID_v1_reservoir
-                ID_v1_reservoir = None
+            record_reservoir.ID_v1 = ID_v1_reservoir
+            ID_v1_reservoir = None
 
             yield record_reservoir
 
