@@ -192,7 +192,29 @@ class CompRecord:
     def to_brackets_with_ID(self) -> str:
         comments_printed = "\n".join(self.comments)
         return f"{self.ID} {self.to_brackets()}\n{comments_printed}"
-    
+    def dump_as_txt_bracket(
+        self, stream: TextIO,
+        show_comments: bool = True,
+        show_ID_v1: int = 1,
+    ) -> None:
+        """
+        Dump the record as a bracketed comparative annotation in the TXT format.
+        """
+        _ = stream.write(f"{self.ID} {self.to_brackets()}\n")
+        if show_comments:
+            _ = stream.writelines(
+                f"# {c}\n" for c in self.comments
+            )
+        # else:
+        #     pass
+
+        if show_ID_v1 == 0 and self.ID_v1:
+            _ = stream.write(f"ID_v1: {self.ID_v1}\n")
+        elif show_ID_v1 > 0:
+            _ = stream.write(f"ID_v1: {self.ID_v1 or ''}\n")
+        # else:
+        #     pass
+
     @classmethod
     def from_brackets(
         cls, 
